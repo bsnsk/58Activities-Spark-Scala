@@ -1,4 +1,9 @@
 wordCountResult
+.idea
 target
 project/target 
 .DS_Store
+metastore_db
+spark-warehouse
+*.log
+out
