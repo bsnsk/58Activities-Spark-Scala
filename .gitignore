@@ -6,3 +6,5 @@ metastore_db
 spark-warehouse
 *.log
 out
+account_info.py
+*.pyc
