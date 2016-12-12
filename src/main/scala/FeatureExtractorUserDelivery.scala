@@ -54,7 +54,8 @@ object FeatureExtractorUserDelivery {
         WHERE resumeuserid <> '-'
       """.stripMargin)
 
-    results.repartition(1).write.mode("overwrite").save("hdfs:///user/shuyangshi/58feature_userdeliveries")
+    import sqlContext.implicits._
+    results.repartition($"deliverydate").write.mode("overwrite").save("hdfs:///user/shuyangshi/58feature_userdeliveries")
   }
 
 }

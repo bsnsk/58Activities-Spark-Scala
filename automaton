@@ -25,4 +25,4 @@ else
   subject='"Build failure :("'
 fi
 
-./notify.py $subject
+./notify $subject

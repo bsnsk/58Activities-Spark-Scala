@@ -84,8 +84,9 @@ object FeatureExtractorUserAction {
           FROM_UNIXTIME(SUBSTR(a.clicktime, 1, 10), 'YYYYMMdd')
       """.stripMargin)
 
+    import sqlContext.implicits._
 //    results.rdd.saveAsTextFile("hdfs:///user/shuyangshi/58feature_userclicks")
-    results.repartition(1).write.mode("overwrite").save("hdfs:///user/shuyangshi/58feature_userclicks")
+    results.repartition($"clickdate").write.mode("overwrite").save("hdfs:///user/shuyangshi/58feature_userclicks")
   }
 
 }

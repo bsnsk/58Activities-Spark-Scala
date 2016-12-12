@@ -16,12 +16,13 @@ object FeatureMerge {
     val tableUserAction = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_userclicks/*.parquet")
     val tableUserDelivery = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_userdeliveries/*.parquet")
     val tableResumeDownloaded  = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_resumedownloads/*.parquet")
+    val tableTimeSeries = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_timeseries")
 //    val tableResumeDetail = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_resumes/*.parquet")
 
     tableUserAction.registerTempTable("58data_userclicks")
     tableUserDelivery.registerTempTable("58data_userdeliveries")
     tableResumeDownloaded.registerTempTable("58data_resumedownloads")
-
+    tableTimeSeries.registerTempTable("58data_timeseries")
     //    tableResumeDetail.registerTempTable("58data_resumes")
 
     val results = sqlContext.sql(
@@ -40,7 +41,16 @@ object FeatureMerge {
         COALESCE(
           COUNT(rd.positionid),
           0
-        ) AS downloadcount
+        ) AS downloadcount,
+        COALESCE(
+          ts.sumclicks,
+          0
+        ) AS periodclickcount,
+        COALESCE(
+          ts.sumdeliveries,
+          0
+        ) AS perioddeliverycount
+
       FROM (
         SELECT DISTINCT
           resumeid,
@@ -64,6 +74,13 @@ object FeatureMerge {
             resumeid,
             downloaddate AS date
           FROM 58data_resumedownloads
+
+          UNION ALL
+
+          SELECT
+            resumeid,
+            date
+          FROM 58data_timeseries
         )
       ) ids
 
@@ -81,6 +98,11 @@ object FeatureMerge {
       ON
         ids.resumeid = rd.resumeid
         AND ids.date = rd.downloaddate
+
+      LEFT OUTER JOIN 58data_timeseries ts
+      ON
+        ids.resumeid = ts.resumeid
+        AND ids.date = ts.date
 
       GROUP BY ids.resumeid, ids.date
     """.stripMargin)

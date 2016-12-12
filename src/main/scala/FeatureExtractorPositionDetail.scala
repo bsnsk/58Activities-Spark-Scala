@@ -16,17 +16,30 @@ object FeatureExtractorPositionDetail {
 
     val results = sqlContext.sql(
       """
-        SELECT *
+        SELECT
+          infoid AS positionid,
+          FROM_UNIXTIME(SUBSTR(adddate, 10), 'YYYYMMdd')
+            AS adddate,
+          cate1 AS category1,
+          cate2 AS category2,
+          cate3 AS category3,
+          title,
+          salary,
+          education,
+          experience,
+          trade
         FROM 58data_positions
         WHERE
           infoid <> '-'
       """.stripMargin)
 
+    import sqlContext.implicits._
+
     results
-      .repartition(1)
+//      .repartition($"adddate")
       .write
       .mode("overwrite")
-      .save("hdfs:///user/shuyangshi/58data_positions")
+      .save("hdfs:///user/shuyangshi/58feature_positions")
   }
 
   def createTablePosition(sc: SparkContext,
@@ -35,7 +48,7 @@ object FeatureExtractorPositionDetail {
 
     val textFiles = sc.textFile("hdfs:///zp/58Data/position/position_*")
 
-    val schemaString = "infoid addate cate1 cate2 cate3 " +
+    val schemaString = "infoid adddate cate1 cate2 cate3 " +
       "title salary education experience trade"
     val dataStructure = new StructType(
       schemaString.split(" ").map(fieldName =>
