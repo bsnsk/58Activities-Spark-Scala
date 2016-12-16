@@ -52,6 +52,12 @@ object FeatureExtractorUserDelivery {
           FROM_UNIXTIME(deliverytime,'YYYYMMdd') AS deliverydate
         FROM 58data_delivery
         WHERE resumeuserid <> '-'
+        AND (
+          FROM_UNIXTIME(deliverytime,'YYYYMMdd')
+            LIKE '201609%'
+          OR FROM_UNIXTIME(deliverytime,'YYYYMMdd')
+            LIKE '201610%'
+        )
       """.stripMargin)
 
     import sqlContext.implicits._

@@ -78,6 +78,12 @@ object FeatureExtractorUserAction {
           a.userid <> '-'
           AND r.userid = a.userid
           AND a.clicktime >= r.adddate
+          AND (
+            FROM_UNIXTIME(SUBSTR(a.clicktime, 1, 10), 'YYYYMMdd')
+              LIKE '201609%'
+            OR FROM_UNIXTIME(SUBSTR(a.clicktime, 1, 10), 'YYYYMMdd')
+              LIKE '201610%'
+          )
         GROUP BY
           r.resumeid,
           a.clicktag,
@@ -85,7 +91,6 @@ object FeatureExtractorUserAction {
       """.stripMargin)
 
     import sqlContext.implicits._
-//    results.rdd.saveAsTextFile("hdfs:///user/shuyangshi/58feature_userclicks")
     results.repartition($"clickdate").write.mode("overwrite").save("hdfs:///user/shuyangshi/58feature_userclicks")
   }
 

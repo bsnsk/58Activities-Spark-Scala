@@ -82,9 +82,14 @@ object FeatureExtractorResumeDownloaded {
         ON
           rd.entid = ep.entid
           AND rd.resumeid <> '-'
+          AND (
+            DATE_FORMAT(rd.downtime, 'YYYYMMdd') LIKE '201609%'
+            OR DATE_FORMAT(rd.downtime, 'YYYYMMdd') LIKE '201610%'
+          )
       """.stripMargin)
 
-    results.repartition(1).write.mode("overwrite").save("hdfs:///user/shuyangshi/58feature_resumedownloads")
+    import sqlContext.implicits._
+    results.repartition($"downloaddate").write.mode("overwrite").save("hdfs:///user/shuyangshi/58feature_resumedownloads")
   }
 
 }

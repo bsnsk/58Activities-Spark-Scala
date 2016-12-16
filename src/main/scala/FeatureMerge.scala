@@ -43,18 +43,22 @@ object FeatureMerge {
           0
         ) AS downloadcount,
         COALESCE(
-          ts.sumclicks,
+          FIRST(ts.sumclicks),
           0
         ) AS periodclickcount,
         COALESCE(
-          ts.sumdeliveries,
+          FIRST(ts.sumdeliveries),
           0
-        ) AS perioddeliverycount
+        ) AS perioddeliverycount,
+        COALESCE(
+          FIRST(ts.sumdownloads),
+          0
+        )
 
       FROM (
         SELECT DISTINCT
-          resumeid,
-          date
+          t.resumeid,
+          t.date
         FROM (
           SELECT
             resumeid,
@@ -81,7 +85,7 @@ object FeatureMerge {
             resumeid,
             date
           FROM 58data_timeseries
-        )
+        ) t
       ) ids
 
       LEFT OUTER JOIN 58data_userclicks uc

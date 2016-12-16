@@ -28,10 +28,10 @@ object FeatureExtractorResumeDetail {
 
     val rowRDD = textFiles
       .map(_.split("\001"))
-      .filter(xs => xs.length >= 20)
+      .filter(xs => xs.length >= 22)
       .map(xs => Row(xs(0), xs(1), xs(2), xs(3), xs(4),
         xs(5), xs(6), xs(11), xs(13), xs(16),
-        xs(17), xs(19)))
+        xs(17), xs(20)))
 
     val namedDF = sqlContext.createDataFrame(
       rowRDD,

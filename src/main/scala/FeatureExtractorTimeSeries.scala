@@ -1,3 +1,5 @@
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.{SparkContext, SparkConf}
 
 /**
@@ -27,120 +29,127 @@ object FeatureExtractorTimeSeries {
 
     sqlContext.sql(
       """
+        |SELECT
+        | resumeid AS resumeid,
+        | clickdate AS date,
+        | SUM(clickcount) AS dailycount
+        |FROM 58data_userclicks
+        |GROUP BY resumeid, clickdate
+      """.stripMargin)
+    .registerTempTable("58temp_daily_userclicks")
+
+    val dataClicks = sqlContext.sql(
+      """
         SELECT
           uc1.resumeid AS resumeid,
-          uc1.clickdate AS date,
-          SUM(uc1.clickcount)
-            + SUM(uc2.clickcount)
+          uc1.date AS date,
+          FIRST(uc1.dailycount) + SUM(uc2.dailycount)
             AS clicks3days
-        FROM 58data_userclicks uc1
-        LEFT JOIN 58data_userclicks uc2
+        FROM 58temp_daily_userclicks uc1
+        LEFT JOIN 58temp_daily_userclicks uc2
         ON
           uc1.resumeid = uc2.resumeid
           AND (
-            uc1.clickdate = uc2.clickdate + 1
-            OR uc1.clickdate = uc2.clickdate + 2
+            uc1.date = uc2.date + 1
+            OR uc1.date = uc2.date + 2
           )
-        GROUP BY uc1.resumeid, uc1.clickdate
+        GROUP BY uc1.resumeid, uc1.date
       """.stripMargin)
-    .registerTempTable("58temp_time_userclicks")
+    dataClicks.registerTempTable("58temp_time_userclicks")
 
     sqlContext.sql(
+      """
+        |SELECT
+        | resumeid,
+        | deliverydate AS date,
+        | COUNT(positionid) AS dailycount
+        |FROM 58data_userdeliveries
+        |GROUP BY resumeid, deliverydate
+      """.stripMargin)
+    .registerTempTable("58temp_daily_userdeliveries")
+
+    val dataDeliveries = sqlContext.sql(
       """
         SELECT
           ud1.resumeid AS resumeid,
-          ud1.deliverydate AS date,
-          COUNT(ud1.positionid)
-            + COUNT(ud2.positionid)
+          ud1.date AS date,
+          FIRST(ud1.dailycount) + SUM(ud2.dailycount)
             AS deliveries3days
-        FROM 58data_userdeliveries ud1
-        JOIN 58data_userdeliveries ud2
+        FROM 58temp_daily_userdeliveries ud1
+        JOIN 58temp_daily_userdeliveries ud2
         ON
           ud1.resumeid = ud2.resumeid
           AND (
-            ud1.deliverydate = ud2.deliverydate + 1
-            OR ud1.deliverydate = ud2.deliverydate + 2
+            ud1.date = ud2.date + 1
+            OR ud1.date = ud2.date + 2
           )
-        GROUP BY ud1.resumeid, ud1.deliverydate
+        GROUP BY ud1.resumeid, ud1.date
       """.stripMargin)
-      .registerTempTable("58temp_time_userdeliveries")
+    dataDeliveries.registerTempTable("58temp_time_userdeliveries")
 
     sqlContext.sql(
+      """
+        |SELECT
+        | resumeid,
+        | downloaddate AS date,
+        | COUNT(positionid) AS dailycount
+        |FROM 58data_resumedownloads
+        |GROUP BY resumeid, downloaddate
+      """.stripMargin)
+    .registerTempTable("58temp_daily_resumedownloads")
+
+    val dataDownloads = sqlContext.sql(
     """
       SELECT
         rd1.resumeid AS resumeid,
-        rd1.downloaddate AS date,
-        COUNT(rd1.positionid)
-          + COUNT(rd2.positionid)
+        rd1.date AS date,
+        FIRST(rd1.dailycount) + SUM(rd2.dailycount)
           AS downloads3days
-        FROM 58data_resumedownloads rd1
-        JOIN 58data_resumedownloads rd2
+        FROM 58temp_daily_resumedownloads rd1
+        JOIN 58temp_daily_resumedownloads rd2
         ON
           rd1.resumeid = rd2.resumeid
           AND (
-            rd1.downloaddate = rd2.downloaddate + 1
-            OR rd1.downloaddate = rd2.downloaddate + 2
+            rd1.date = rd2.date + 1
+            OR rd1.date = rd2.date + 2
           )
-        GROUP BY rd1.resumeid, rd1.downloaddate
-    """.stripMargin
-    ).registerTempTable("58temp_time_resumedownloads")
+        GROUP BY rd1.resumeid, rd1.date
+    """.stripMargin)
+    dataDownloads.registerTempTable("58temp_time_resumedownloads")
 
-    val timeSeriesTable = sqlContext.sql(
-      """
-        SELECT
-          ids.resumeid,
-          ids.date,
-          COALESCE(
-            uc.clicks3days,
-            0
-          ) AS sumclicks,
-          COALESCE(
-            ud.deliveries3days,
-            0
-          ) AS sumdeliveries
-        FROM (
-          SELECT DISTINCT
-            resumeid,
-            date
-          FROM (
-            SELECT
-              resumeid,
-              date
-            FROM 58temp_time_userclicks
+    val dataAll = dataClicks
+      .map(xs => ((xs(0), xs(1)), xs(2)))
+      .filter(xs => xs._1._1 != null && xs._1._2 != null && xs._2 != null)
+      .fullOuterJoin(dataDeliveries
+        .map(xs => ((xs(0), xs(1)), xs(2)))
+        .filter(xs => xs._1._1 != null && xs._1._2 != null && xs._2 != null)
+      )
+      .map {
+        case (key, (None, numDeliveries)) => (key, ("0", numDeliveries.get.toString))
+        case (key, (numClicks, None)) => (key, (numClicks.get.toString, "0"))
+        case (key, (numClicks, numDeliveries)) => (key, (numClicks.get.toString, numDeliveries.get.toString))
+      }
+      .fullOuterJoin(dataDownloads
+        .map(xs => ((xs(0), xs(1)), xs(2)))
+      )
+      .map {
+        case (key, (exist, None)) => Row(key._1, key._2, exist.get._1, exist.get._2, "0")
+        case (key, (None, numDownloads)) => Row(key._1, key._2, "0", "0", numDownloads.get.toString)
+        case (key, (exist, numDownloads)) => Row(key._1, key._2, exist.get._1, exist.get._2, numDownloads.get.toString)
+      }
 
-            UNION ALL
+    val schemaString = "resumeid date sumclicks sumdeliveries sumdownloads"
+    val dataStructure = new StructType(
+      schemaString.split(" ").map(fieldName =>
+        StructField(fieldName, StringType, nullable = false)
+      )
+    )
 
-            SELECT
-              resumeid,
-              date
-            FROM 58temp_time_userdeliveries
-
-            UNION ALL
-
-            SELECT
-              resumeid,
-              date
-            FROM 58temp_time_resumedownloads
-          )
-        ) ids
-
-        LEFT OUTER JOIN 58temp_time_userclicks uc
-        ON
-          ids.resumeid = uc.resumeid
-          AND ids.date = uc.date
-
-        LEFT OUTER JOIN 58temp_time_userdeliveries ud
-        ON
-          ids.resumeid = ud.resumeid
-          AND ids.date = ud.date
-
-        LEFT OUTER JOIN 58temp_time_resumedownloads rd
-        ON
-          ids.resumeid = rd.resumeid
-          AND ids.date = rd.date
-      """.stripMargin)
-
-    timeSeriesTable
+    sqlContext
+      .createDataFrame(
+        dataAll,
+        dataStructure
+      )
       .repartition($"date")
       .write.mode("overwrite")
       .save("hdfs:///user/shuyangshi/58feature_timeseries")
