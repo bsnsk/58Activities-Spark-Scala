@@ -61,7 +61,7 @@ object FeatureExtractorDownloadMatches {
 
     val entryWeight = (x: Int, y: Int) => (10 - abs(x-y)).toDouble
 
-    val downloadMatches = downloadByResume.join(dataResumeDetail)
+    val downloadMatchesHalf = downloadByResume.join(dataResumeDetail)
       .map {
         case (resumeid, (
           (positionid, downloaddate),
@@ -84,6 +84,10 @@ object FeatureExtractorDownloadMatches {
             nowsalary
             ))
       }
+
+    System.out.println("AFTERRESUMEJOIN: #" + downloadMatchesHalf.count().toString)
+
+    val downloadMatches = downloadMatchesHalf
       .join(dataPositionDetail)
       .map {
         case (positionid,
@@ -151,14 +155,15 @@ object FeatureExtractorDownloadMatches {
 
   def calcStringFormula(x: String, y: String, f: (Int, Int) => Double): Double = {
     try {
-      if (x.length > 2 || y.length > 2)
+      if (x.length > 2 || y.length > 2) {
         return 0
+      }
       val xInt = x.toInt
       val yInt = y.toInt
-      return f(xInt, yInt)
+      f(xInt, yInt)
     } catch {
       case _: Throwable =>
-        return 0
+        0
     }
   }
 }

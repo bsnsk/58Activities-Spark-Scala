@@ -11,14 +11,15 @@ object FeatureExtractorDeliveryMatches {
 
   def calcStringFormula(x: String, y: String, f: (Int, Int) => Double): Double = {
     try {
-      if (x.length > 2 || y.length > 2)
-        return 0
+      if (x.length > 2 || y.length > 2) {
+        return 0.toDouble
+      }
       val xInt = x.toInt
       val yInt = y.toInt
-      return f(xInt, yInt)
+      f(xInt, yInt)
     } catch {
       case _: Throwable =>
-        return 0
+        0.toDouble
     }
   }
 
@@ -126,7 +127,7 @@ object FeatureExtractorDeliveryMatches {
         ((resumeid, rdeliverydate), {
           calcStringFormula(rtargetsalary.toString, psalary.toString, entryWeight)
           + calcStringFormula(reducation.toString, peducation.toString, entryWeight)
-          + calcStringFormula(rcomplete.toString, "", (x:Int, y:Int) => x / 10)
+          + calcStringFormula(rcomplete.toString, "", (x:Int, y:Int) => x.toDouble / 10)
           + calcStringFormula(rtargetsalary.toString, rnowsalary.toString, entryWeight)
         })
     }
@@ -136,19 +137,26 @@ object FeatureExtractorDeliveryMatches {
     val deliveryAveMatches = deliverySumMatches.join(deliveryCountMatches)
       .map {
         case (key, (sumByKey, cnt))
-        => (key, sumByKey / cnt)
+        => (key, sumByKey.toDouble / cnt)
       }
-      .map(xs => (xs._1._1, xs._1._2, xs._2))
+    val deliveryMaxMatch = deliveryMatches.reduceByKey((x,y) => if(x>y) x else y)
+    val deliveryMatchesFull = deliveryMaxMatch
+      .fullOuterJoin(deliveryAveMatches)
+      .map {
+        case (key, (None, ave)) => (key._1, key._2, null, ave.get.toString)
+        case (key, (max, None)) => (key._1, key._2, max.get.toString, null)
+        case (key, (max, ave)) => (key._1, key._2, max.get.toString, ave.get.toString)
+      }
 
-    val schemaString = "resumeid deliverydate avematch rs"
+    val schemaString = "resumeid deliverydate maxmatch avematch"
     val dataStructure = new StructType(
       schemaString.split(" ").map(fieldName =>
         StructField(fieldName, StringType, nullable = false)
       )
     )
 
-    val rowRDD = deliveryAveMatches
-      .map(xs => Row(xs._1, xs._2, xs._3, xs._1.toString.toInt % 20))
+    val rowRDD = deliveryMatchesFull
+      .map(xs => Row(xs._1, xs._2, xs._3, xs._4))
 
     val namedDF = sqlContext.createDataFrame(
       rowRDD,
@@ -157,7 +165,7 @@ object FeatureExtractorDeliveryMatches {
 
     import sqlContext.implicits._
 
-    namedDF.repartition($"rs").write.mode("overwrite")
+    namedDF.repartition($"deliverydate").write.mode("overwrite")
       .save("hdfs:///user/shuyangshi/58feature_deliverymatches")
 
   }

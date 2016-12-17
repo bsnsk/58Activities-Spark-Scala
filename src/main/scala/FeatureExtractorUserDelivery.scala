@@ -3,6 +3,7 @@ import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.{SparkConf, SparkContext}
 
 /**
+ * Feature: User clicks
  * Created by Ivan on 2016/12/3.
  */
 object FeatureExtractorUserDelivery {
@@ -49,13 +50,13 @@ object FeatureExtractorUserDelivery {
           resumeuserid AS userid,
           resumeid,
           infoid AS positionid,
-          FROM_UNIXTIME(deliverytime,'YYYYMMdd') AS deliverydate
+          FROM_UNIXTIME(SUBSTR(deliverytime, 1, 10), 'YYYYMMdd') AS deliverydate
         FROM 58data_delivery
         WHERE resumeuserid <> '-'
         AND (
-          FROM_UNIXTIME(deliverytime,'YYYYMMdd')
+          FROM_UNIXTIME(SUBSTR(deliverytime, 1, 10), 'YYYYMMdd')
             LIKE '201609%'
-          OR FROM_UNIXTIME(deliverytime,'YYYYMMdd')
+          OR FROM_UNIXTIME(SUBSTR(deliverytime, 1, 10), 'YYYYMMdd')
             LIKE '201610%'
         )
       """.stripMargin)
