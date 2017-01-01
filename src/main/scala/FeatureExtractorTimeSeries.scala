@@ -110,8 +110,14 @@ object FeatureExtractorTimeSeries {
         ON
           rd1.resumeid = rd2.resumeid
           AND (
-            rd1.date = rd2.date + 1
-            OR rd1.date = rd2.date + 2
+            rd1.date = DATE_FORMAT(
+              DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(rd2.date, 'yyyyMMdd')), 1),
+              'yyyyMMdd'
+            )
+            OR rd1.date = DATE_FORMAT(
+              DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(rd2.date, 'yyyyMMdd')), 2),
+              'yyyyMMdd'
+            )
           )
         GROUP BY rd1.resumeid, rd1.date
     """.stripMargin)

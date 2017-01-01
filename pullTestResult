@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+ssh changping12 "hadoop fs -copyToLocal /user/shuyangshi/58prediction_test ./bsnsk/58PredictionResult"
+scp -r changping12:~/bsnsk/58PredictionResult ./testResults/$(date +%Y%m%d%H%M%S)

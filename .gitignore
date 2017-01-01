@@ -1,4 +1,5 @@
 wordCountResult
+testResults
 target
 project/target 
 .DS_Store
@@ -8,3 +9,4 @@ spark-warehouse
 out
 account_info.py
 *.pyc
+.idea/workspace.xml
