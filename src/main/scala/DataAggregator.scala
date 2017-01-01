@@ -1,7 +1,9 @@
-import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.regression.LabeledPoint
+import java.text.SimpleDateFormat
+import java.util.Calendar
+
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.Row
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{SparkConf, SparkContext}
 
 /**
  * Aggregate training data and labels together
@@ -18,38 +20,39 @@ object DataAggregator {
 
     val tableFeatures = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_all/*.parquet")
     val tableLabels = sqlContext.read.parquet("hdfs:///user/shuyangshi/58label_activeness/*.parquet")
-    tableFeatures.registerTempTable("58data_features")
-    tableLabels.registerTempTable("58data_labels")
 
     val labeledDataNoSQL = tableFeatures
-      .map(xs => ((xs(0), xs(1)), xs.toSeq.drop(2)))
+      .map(xs => ((xs(0), xs(1).toString), xs.toSeq.drop(2)))
       .leftOuterJoin(
-        sqlContext.sql(
-          """
-            |SELECT
-            | resumeid,
-            | DATE_FORMAT(
-            |   DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(date, 'yyyyMMdd')), -1),
-            |   'yyyyMMdd'
-            | ) AS date,
-            | activeness
-            |FROM 58data_labels
-          """.stripMargin)
-          .repartition($"date")
-          .map(xs => ((xs(0), xs(1)), xs(2)))
+        tableLabels
+          .flatMap(xs => {
+            val dateString = xs(1).toString
+            val sdf = new SimpleDateFormat("yyyyMMdd")
+            val date = Calendar.getInstance()
+            date.setTime(sdf.parse(dateString))
+
+            Array(1, 2, 3).map(n => {
+              date.add(Calendar.DAY_OF_MONTH, -1)
+              ((xs(0), sdf.format(date.getTime)), xs(2))
+            })
+          })
+          .distinct()
       )
       .map{
         case (key, (features, None)) => (key._2.toString,  "0" :: features.map(_.toString).toList)
         case (key, (features, label)) => (key._2.toString,  "1" :: features.map(_.toString).toList)
-                                                                            // **WARNING**: Labels fetched
+                                                                            // __WARNING__: Labels fetched
                                                                             // previously contain only active ones
       }
       .toDF()
 
+    val outputPath = "hdfs:///user/shuyangshi/58data_labeledNoSQL"
+    val fs = FileSystem.get(sc.hadoopConfiguration)
+    fs.delete(new Path(outputPath), true)
     labeledDataNoSQL
       .repartition($"_1")
       .rdd
-      .saveAsTextFile("hdfs:///user/shuyangshi/58data_labeledNoSQL")
+      .saveAsTextFile(outputPath)
   }
 
   def mainSQL(): Unit ={

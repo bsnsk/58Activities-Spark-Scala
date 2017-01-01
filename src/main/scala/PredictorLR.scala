@@ -31,7 +31,7 @@ object PredictorLR {
         (date.toInt, LabeledPoint(activeness.toInt, Vectors.dense(features)))
       })
 
-    val dividerDate = 20161006
+    val dividerDate = 20161005
     val trainingData = data.filter(pair => pair._1 <= dividerDate)
       .map(r => r._2)
     val testData = data.filter(pair => pair._1 >= dividerDate)
