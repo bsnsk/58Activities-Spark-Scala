@@ -32,7 +32,7 @@ object FeatureExtractorTimeSeries {
         |SELECT
         | resumeid AS resumeid,
         | clickdate AS date,
-        | SUM(clickcount) AS dailycount
+        | SUM(clickcount) AS daily_count
         |FROM 58data_userclicks
         |GROUP BY resumeid, clickdate
       """.stripMargin)
@@ -40,20 +40,42 @@ object FeatureExtractorTimeSeries {
 
     val dataClicks = sqlContext.sql(
       """
-        SELECT
-          uc1.resumeid AS resumeid,
-          uc1.date AS date,
-          FIRST(uc1.dailycount) + SUM(uc2.dailycount)
-            AS clicks3days
-        FROM 58temp_daily_userclicks uc1
-        LEFT JOIN 58temp_daily_userclicks uc2
-        ON
-          uc1.resumeid = uc2.resumeid
-          AND (
-            uc1.date = uc2.date + 1
-            OR uc1.date = uc2.date + 2
-          )
-        GROUP BY uc1.resumeid, uc1.date
+         | SELECT
+         |  uc_period.resumeid,
+         |  uc_period.date,
+         |  SUM(uc_period.daily_count) AS clicks_sum,
+         |  STDDEV_POP(uc_period.daily_count) AS clicks_std
+         | FROM (
+         |  SELECT
+         |    uc.resumeid,
+         |    uc.date,
+         |    uc.daily_count
+         |  FROM 58temp_daily_userclicks uc
+         |
+         |  UNION ALL
+         |
+         |  SELECT
+         |    uc.resumeid,
+         |    DATE_FORMAT(
+         |      DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(uc.date, 'yyyyMMdd')), -1),
+         |      'yyyyMMdd'
+         |    ) AS date,
+         |    uc.daily_count
+         |  FROM 58temp_daily_userclicks uc
+         |
+         |  UNION ALL
+         |
+         |  SELECT
+         |    uc.resumeid,
+         |    DATE_FORMAT(
+         |      DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(uc.date, 'yyyyMMdd')), -2),
+         |      'yyyyMMdd'
+         |    ) AS date,
+         |    uc.daily_count
+         |  FROM 58temp_daily_userclicks uc
+         | ) uc_period
+         | GROUP BY uc_period.resumeid, uc_period.date
+         | HAVING COUNT(uc_period.daily_count) = 3
       """.stripMargin)
     dataClicks.registerTempTable("58temp_time_userclicks")
 
@@ -62,7 +84,7 @@ object FeatureExtractorTimeSeries {
         |SELECT
         | resumeid,
         | deliverydate AS date,
-        | COUNT(positionid) AS dailycount
+        | COUNT(positionid) AS daily_count
         |FROM 58data_userdeliveries
         |GROUP BY resumeid, deliverydate
       """.stripMargin)
@@ -70,20 +92,42 @@ object FeatureExtractorTimeSeries {
 
     val dataDeliveries = sqlContext.sql(
       """
-        SELECT
-          ud1.resumeid AS resumeid,
-          ud1.date AS date,
-          FIRST(ud1.dailycount) + SUM(ud2.dailycount)
-            AS deliveries3days
-        FROM 58temp_daily_userdeliveries ud1
-        JOIN 58temp_daily_userdeliveries ud2
-        ON
-          ud1.resumeid = ud2.resumeid
-          AND (
-            ud1.date = ud2.date + 1
-            OR ud1.date = ud2.date + 2
-          )
-        GROUP BY ud1.resumeid, ud1.date
+        | SELECT
+        |  ud_period.resumeid,
+        |  ud_period.date,
+        |  SUM(ud_period.daily_count) AS deliveries_sum,
+        |  STDDEV_POP(ud_period.daily_count) AS deliveries_std
+        | FROM (
+        |  SELECT
+        |    ud.resumeid,
+        |    ud.date,
+        |    ud.daily_count
+        |  FROM 58temp_daily_userdeliveries ud
+        |
+        |  UNION ALL
+        |
+        |  SELECT
+        |    ud.resumeid,
+        |    DATE_FORMAT(
+        |      DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(ud.date, 'yyyyMMdd')), -1),
+        |      'yyyyMMdd'
+        |    ) AS date,
+        |    ud.daily_count
+        |  FROM 58temp_daily_userdeliveries ud
+        |
+        |  UNION ALL
+        |
+        |  SELECT
+        |    ud.resumeid,
+        |    DATE_FORMAT(
+        |      DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(ud.date, 'yyyyMMdd')), -2),
+        |      'yyyyMMdd'
+        |    ) AS date,
+        |    ud.daily_count
+        |  FROM 58temp_daily_userdeliveries ud
+        | ) ud_period
+        | GROUP BY ud_period.resumeid, ud_period.date
+        | HAVING COUNT(ud_period.daily_count) = 3
       """.stripMargin)
     dataDeliveries.registerTempTable("58temp_time_userdeliveries")
 
@@ -92,59 +136,85 @@ object FeatureExtractorTimeSeries {
         |SELECT
         | resumeid,
         | downloaddate AS date,
-        | COUNT(positionid) AS dailycount
+        | COUNT(positionid) AS daily_count
         |FROM 58data_resumedownloads
         |GROUP BY resumeid, downloaddate
       """.stripMargin)
     .registerTempTable("58temp_daily_resumedownloads")
 
     val dataDownloads = sqlContext.sql(
-    """
-      SELECT
-        rd1.resumeid AS resumeid,
-        rd1.date AS date,
-        FIRST(rd1.dailycount) + SUM(rd2.dailycount)
-          AS downloads3days
-        FROM 58temp_daily_resumedownloads rd1
-        JOIN 58temp_daily_resumedownloads rd2
-        ON
-          rd1.resumeid = rd2.resumeid
-          AND (
-            rd1.date = DATE_FORMAT(
-              DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(rd2.date, 'yyyyMMdd')), 1),
-              'yyyyMMdd'
-            )
-            OR rd1.date = DATE_FORMAT(
-              DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(rd2.date, 'yyyyMMdd')), 2),
-              'yyyyMMdd'
-            )
-          )
-        GROUP BY rd1.resumeid, rd1.date
-    """.stripMargin)
+      """
+        | SELECT
+        |  rd_period.resumeid,
+        |  rd_period.date,
+        |  SUM(rd_period.daily_count) AS downloads_sum,
+        |  STDDEV_POP(rd_period.daily_count) AS downloads_std
+        | FROM (
+        |  SELECT
+        |    rd.resumeid,
+        |    rd.date,
+        |    rd.daily_count
+        |  FROM 58temp_daily_resumedownloads rd
+        |
+        |  UNION ALL
+        |
+        |  SELECT
+        |    rd.resumeid,
+        |    DATE_FORMAT(
+        |      DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(rd.date, 'yyyyMMdd')), -1),
+        |      'yyyyMMdd'
+        |    ) AS date,
+        |    rd.daily_count
+        |  FROM 58temp_daily_resumedownloads rd
+        |
+        |  UNION ALL
+        |
+        |  SELECT
+        |    rd.resumeid,
+        |    DATE_FORMAT(
+        |      DATE_ADD(FROM_UNIXTIME(UNIX_TIMESTAMP(rd.date, 'yyyyMMdd')), -2),
+        |      'yyyyMMdd'
+        |    ) AS date,
+        |    rd.daily_count
+        |  FROM 58temp_daily_resumedownloads rd
+        | ) rd_period
+        | GROUP BY rd_period.resumeid, rd_period.date
+        | HAVING COUNT(rd_period.daily_count) = 3
+      """.stripMargin)
     dataDownloads.registerTempTable("58temp_time_resumedownloads")
 
     val dataAll = dataClicks
-      .map(xs => ((xs(0), xs(1)), xs(2)))
+      .map(xs => ((xs(0), xs(1)), (xs(2), xs(3))))
       .filter(xs => xs._1._1 != null && xs._1._2 != null && xs._2 != null)
       .fullOuterJoin(dataDeliveries
-        .map(xs => ((xs(0), xs(1)), xs(2)))
+        .map(xs => ((xs(0), xs(1)), (xs(2), xs(3))))
         .filter(xs => xs._1._1 != null && xs._1._2 != null && xs._2 != null)
       )
       .map {
-        case (key, (None, numDeliveries)) => (key, ("0", numDeliveries.get.toString))
-        case (key, (numClicks, None)) => (key, (numClicks.get.toString, "0"))
-        case (key, (numClicks, numDeliveries)) => (key, (numClicks.get.toString, numDeliveries.get.toString))
+        case (key, (numClicks, numDeliveries)) => (key, (
+          if (numClicks.isDefined) numClicks.get._1.toString else "0",
+          if (numClicks.isDefined) numClicks.get._2.toString else "0",
+          if (numDeliveries.isDefined) numDeliveries.get._1.toString else "0",
+          if (numDeliveries.isDefined) numDeliveries.get._2.toString else "0"
+        ))
       }
       .fullOuterJoin(dataDownloads
-        .map(xs => ((xs(0), xs(1)), xs(2)))
+        .map(xs => ((xs(0), xs(1)), (xs(2), xs(3))))
       )
       .map {
-        case (key, (exist, None)) => Row(key._1, key._2, exist.get._1, exist.get._2, "0")
-        case (key, (None, numDownloads)) => Row(key._1, key._2, "0", "0", numDownloads.get.toString)
-        case (key, (exist, numDownloads)) => Row(key._1, key._2, exist.get._1, exist.get._2, numDownloads.get.toString)
+        case (key, (exist, numDownloads)) => Row(
+          key._1,
+          key._2,
+          if (exist.isDefined) exist.get._1 else "0",
+          if (exist.isDefined) exist.get._2 else "0",
+          if (exist.isDefined) exist.get._3 else "0",
+          if (exist.isDefined) exist.get._4 else "0",
+          if (numDownloads.isDefined) numDownloads.get._1.toString else "0",
+          if (numDownloads.isDefined) numDownloads.get._2.toString else "0"
+        )
       }
 
-    val schemaString = "resumeid date sumclicks sumdeliveries sumdownloads"
+    val schemaString = "resumeid date sum_clicks std_clicks sum_deliveries std_deliveries sum_downloads std_downloads"
     val dataStructure = new StructType(
       schemaString.split(" ").map(fieldName =>
         StructField(fieldName, StringType, nullable = false)

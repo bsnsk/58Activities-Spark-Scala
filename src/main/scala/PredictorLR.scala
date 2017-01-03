@@ -37,7 +37,14 @@ object PredictorLR {
     val testData = data.filter(pair => pair._1 >= dividerDate)
 
     val numIterations = 10
-    val lrModel = LogisticRegressionWithSGD.train(trainingData, numIterations)
+    val cntPositiveSamples = trainingData.filter(r => r.label.toInt == 1).count()
+    val cntNegativeSamples = trainingData.filter(r => r.label.toInt == 0).count()
+    val rate = (cntNegativeSamples.toDouble / cntPositiveSamples).toInt
+    val trainingDataBalanced = trainingData
+    val lrModel = LogisticRegressionWithSGD.train(
+      trainingDataBalanced,
+      numIterations
+    )
     val closedTest = testData
       .map(data => {
         val prediction = lrModel.predict(data._2.features)

@@ -30,36 +30,48 @@ object FeatureMerge {
     val results = sqlContext.sql(
     """
       SELECT
-        ids.resumeid,
+        ids.resumeid AS resume_id,
         ids.date,
         COALESCE(
           SUM(uc.clickcount),
           0
-        ) AS clickcount,
+        ) AS click_count,
         COALESCE(
           COUNT(ud.positionid),
           0
-        ) AS deliverycount,
+        ) AS delivery_count,
         COALESCE(
           COUNT(rd.positionid),
           0
-        ) AS downloadcount,
+        ) AS download_count,
         COALESCE(
-          FIRST(ts.sumclicks),
+          FIRST(ts.sum_clicks),
           0
-        ) AS periodclickcount,
+        ) AS period_click_count,
         COALESCE(
-          FIRST(ts.sumdeliveries),
+          FIRST(ts.std_clicks),
           0
-        ) AS perioddeliverycount,
+        ) AS period_click_std,
         COALESCE(
-          FIRST(ts.sumdownloads),
+          FIRST(ts.sum_deliveries),
           0
-        ) AS perioddownloadcount,
+        ) AS period_delivery_count,
+        COALESCE(
+          FIRST(ts.std_deliveries),
+          0
+        ) AS period_delivery_std,
+        COALESCE(
+          FIRST(ts.sum_downloads),
+          0
+        ) AS period_download_count,
+        COALESCE(
+          FIRST(ts.std_downloads),
+          0
+        ) AS period_download_std,
         COALESCE(
           FIRST(dv.avematch),
           0
-        ) AS deliveryavematch,
+        ) AS delivery_ave_match,
         COALESCE(
           FIRST(dl.avematch),
           0
