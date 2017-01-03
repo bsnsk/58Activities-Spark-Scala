@@ -37,6 +37,7 @@ object DataAggregator {
             })
           })
           .distinct()
+          .flatMap(xs => List.fill(32)(xs)) // __TODO__ Balance negative / positive training samples
       )
       .map{
         case (key, (features, None)) => (key._2.toString,  "0" :: features.map(_.toString).toList)
