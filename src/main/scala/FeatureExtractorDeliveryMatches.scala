@@ -134,32 +134,53 @@ object FeatureExtractorDeliveryMatches {
 
     val deliveryCountMatches = deliveryMatches.map(xs => (xs._1, 1)).reduceByKey(_+_)
     val deliverySumMatches = deliveryMatches.reduceByKey(_+_)
+    val deliverySquareSumMatches = deliveryMatches
+      .map(r => (r._1, r._2.toDouble * r._2.toDouble))
+      .reduceByKey(_+_)
     val deliveryAveMatches = deliverySumMatches.join(deliveryCountMatches)
       .map {
         case (key, (sumByKey, cnt))
         => (key, sumByKey.toDouble / cnt)
       }
+    val deliveryVarMatches = deliverySquareSumMatches.join(deliveryCountMatches)
+      .map {
+        case (key, (squareSum, cnt))
+        => (key, (squareSum * cnt, cnt))
+      }
+      .join(deliverySumMatches)
+      .map {
+        case (key, ((nSquareSum, cnt), sum))
+        => (key, (nSquareSum - sum * sum) / cnt / cnt)
+      }
     val deliveryMaxMatch = deliveryMatches.reduceByKey((x,y) => if(x>y) x else y)
     val deliveryMatchesFull = deliveryMaxMatch
+      .fullOuterJoin(deliveryVarMatches)
+      .map {
+        case (key, (max, variance)) => (key, (
+          if (max.isDefined) max.get.toString else null,
+          if (variance.isDefined) variance.get.toString else null
+        ))
+      }
       .fullOuterJoin(deliveryAveMatches)
       .map {
-        case (key, (None, ave)) => (key._1, key._2, null, ave.get.toString)
-        case (key, (max, None)) => (key._1, key._2, max.get.toString, null)
-        case (key, (max, ave)) => (key._1, key._2, max.get.toString, ave.get.toString)
+        case (key, (exist, ave)) => Row(
+          key._1,
+          key._2,
+          if (exist.isDefined) exist.get._1 else null,
+          if (exist.isDefined) exist.get._2 else null,
+          if (ave.isDefined) ave.get.toString else null
+        )
       }
 
-    val schemaString = "resumeid deliverydate maxmatch avematch"
+    val schemaString = "resumeid deliverydate maxmatch varmatch avematch"
     val dataStructure = new StructType(
       schemaString.split(" ").map(fieldName =>
         StructField(fieldName, StringType, nullable = false)
       )
     )
 
-    val rowRDD = deliveryMatchesFull
-      .map(xs => Row(xs._1, xs._2, xs._3, xs._4))
-
     val namedDF = sqlContext.createDataFrame(
-      rowRDD,
+      deliveryMatchesFull,
       dataStructure
     )
 

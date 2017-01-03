@@ -73,9 +73,17 @@ object FeatureMerge {
           0
         ) AS delivery_ave_match,
         COALESCE(
+          FIRST(dv.maxmatch),
+          0
+        ) AS delivery_max_match,
+        COALESCE(
+          FIRST(dv.varmatch),
+          0
+        ) AS delivery_var_match,
+        COALESCE(
           FIRST(dl.avematch),
           0
-        ) AS downloadavematch
+        ) AS download_ave_match
 
       FROM (
         SELECT DISTINCT
