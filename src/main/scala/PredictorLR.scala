@@ -1,6 +1,7 @@
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.ml.classification.{BinaryLogisticRegressionSummary, LogisticRegression}
 import org.apache.spark.mllib.classification.LogisticRegressionWithSGD
+import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.{SparkConf, SparkContext}
@@ -37,19 +38,32 @@ object PredictorLR {
     val testData = data.filter(pair => pair._1 >= dividerDate)
 
     val numIterations = 10
-    val cntPositiveSamples = trainingData.filter(r => r.label.toInt == 1).count()
-    val cntNegativeSamples = trainingData.filter(r => r.label.toInt == 0).count()
-    val rate = (cntNegativeSamples.toDouble / cntPositiveSamples).toInt
+//    val cntPositiveSamples = trainingData.filter(r => r.label.toInt == 1).count()
+//    val cntNegativeSamples = trainingData.filter(r => r.label.toInt == 0).count()
+//    val rate = (cntNegativeSamples.toDouble / cntPositiveSamples).toInt
     val trainingDataBalanced = trainingData
     val lrModel = LogisticRegressionWithSGD.train(
       trainingDataBalanced,
       numIterations
     )
-    val closedTest = testData
+    val testLabelsAndScores = testData
       .map(data => {
         val prediction = lrModel.predict(data._2.features)
         (data._1, (data._2.label.toInt, prediction.toInt))
       })
+
+    val dates = testLabelsAndScores.map(xs => xs._1).distinct().collect()
+    var auROCList: List[(Int, Double)] = List()
+    for (date <- dates) {
+      val auROC = new BinaryClassificationMetrics(
+        testLabelsAndScores.filter(_._1 == date)
+          .map(xs => (xs._2._2, xs._2._1))
+      ).areaUnderROC()
+      auROCList = (date, auROC) :: auROCList
+    }
+    val auROCs = sc.makeRDD(auROCList).repartition(1)
+
+    val f1MeasureScores = testLabelsAndScores
       .map {
         case (date, (1, 1)) => (date, (1, 0, 0, 0)) // TP
         case (date, (0, 1)) => (date, (0, 1, 0, 0)) // FP
@@ -72,13 +86,15 @@ object PredictorLR {
         val P = TP / (TP + FP)
         val R = TP / (TP + FN)
         val F1 = 2 * P * R / (P + R)
-        (date, P, R, F1, xs._2)
+        (date, (P, R, F1, xs._2))
       })
+
+    val testMeasures = auROCs.join(f1MeasureScores)
 
     val outputPath = "hdfs:///user/shuyangshi/58prediction_test"
     val fs = FileSystem.get(sc.hadoopConfiguration)
     fs.delete(new Path(outputPath), true)
 
-    closedTest.saveAsTextFile(outputPath)
+    testMeasures.saveAsTextFile(outputPath)
   }
 }
