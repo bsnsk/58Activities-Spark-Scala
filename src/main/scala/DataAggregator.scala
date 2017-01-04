@@ -11,7 +11,7 @@ import org.apache.spark.{SparkConf, SparkContext}
  */
 object DataAggregator {
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("SparkPredictor")
+    val conf = new SparkConf().setAppName("SparkDataAggregator")
     val sc = new SparkContext(conf)
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)

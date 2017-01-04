@@ -61,7 +61,8 @@ object PredictorLR {
       ).areaUnderROC()
       auROCList = (date, auROC) :: auROCList
     }
-    val auROCs = sc.makeRDD(auROCList).repartition(1)
+    val auROCs = sc.makeRDD(auROCList)
+      .sortByKey(ascending = true, numPartitions = 1)
 
     val f1MeasureScores = testLabelsAndScores
       .map {

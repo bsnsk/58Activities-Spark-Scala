@@ -9,7 +9,7 @@ import org.apache.spark.{SparkContext, SparkConf}
  */
 object LabelExtractorActivityLevel {
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("SparkFeatureExtractor")
+    val conf = new SparkConf().setAppName("SparkLabelExtractor")
     val sc = new SparkContext(conf)
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 

@@ -7,7 +7,7 @@ import org.apache.spark.{SparkContext, SparkConf}
 object FeatureMerge {
 
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("SparkFeatureExtractor")
+    val conf = new SparkConf().setAppName("SparkFeatureMerger")
     val sc = new SparkContext(conf)
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
