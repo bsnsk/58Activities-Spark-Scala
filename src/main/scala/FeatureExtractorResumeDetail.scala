@@ -15,7 +15,11 @@ object FeatureExtractorResumeDetail {
                           sqlContext: org.apache.spark.sql.SQLContext
                            ) = {
 
-    val textFiles = sc.textFile("hdfs:///zp/58Data/resume/resume_*")
+    val textFiles = sc.textFile("hdfs:///zp/58Data/resume/resume_20161*," +
+      "hdfs:///zp/58Data/resume/resume_2016091*," +
+      "hdfs:///zp/58Data/resume/resume_2016092[0-4]," +
+      "hdfs:///zp/58Data/resume/resume_2016092[6-9]," +
+      "hdfs:///zp/58Data/resume/resume_20160930")
 
     val schemaString = "resumeid userid nowposition targetcategory targetposition " +
       "targetsalary education gender jobstate areaid " +
@@ -28,7 +32,7 @@ object FeatureExtractorResumeDetail {
 
     val rowRDD = textFiles
       .map(_.split("\001"))
-      .filter(xs => xs.length >= 22)
+      .filter(xs => xs.length == 34)
       .map(xs => Row(xs(0), xs(1), xs(2), xs(3), xs(4),
         xs(5), xs(6), xs(11), xs(13), xs(16),
         xs(17), xs(20)))

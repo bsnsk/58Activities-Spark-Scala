@@ -42,6 +42,14 @@ object PredictorLR {
 //    val cntNegativeSamples = trainingData.filter(r => r.label.toInt == 0).count()
 //    val rate = (cntNegativeSamples.toDouble / cntPositiveSamples).toInt
     val trainingDataBalanced = trainingData
+//    val trainingDataBalancedDF = trainingData.map(x => (
+//      if (x.label.toInt == 1) rate else 1,
+//      x
+//    )).toDF("weight", "labeledPoint")
+//    val lrModel = new LogisticRegression()
+//      .setMaxIter(numIterations)
+//      .setWeightCol("weight")
+//      .fit(trainingDataBalanced)
     val lrModel = LogisticRegressionWithSGD.train(
       trainingDataBalanced,
       numIterations

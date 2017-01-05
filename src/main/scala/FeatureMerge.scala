@@ -6,6 +6,18 @@ import org.apache.spark.{SparkContext, SparkConf}
  */
 object FeatureMerge {
 
+  def formatMatchesFeatureSelects(tableAlias: String, actionName: String): String = {
+    val featureList = new FeatureExtractorTemplateMatches().featureString.split(" ")
+    featureList.map(name =>
+      s"""
+        COALESCE(
+          FIRST($tableAlias.$name),
+          0
+        ) AS ${actionName}_$name"""
+      .stripMargin)
+      .mkString(",\n")
+  }
+
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("SparkFeatureMerger")
     val sc = new SparkContext(conf)
@@ -28,22 +40,26 @@ object FeatureMerge {
     tableDownloadMatches.registerTempTable("58data_downloadmatches")
 
     val results = sqlContext.sql(
-    """
+    s"""
       SELECT
         ids.resumeid AS resume_id,
         ids.date,
+
         COALESCE(
           SUM(uc.clickcount),
           0
         ) AS click_count,
+
         COALESCE(
           COUNT(ud.positionid),
           0
         ) AS delivery_count,
+
         COALESCE(
           COUNT(rd.positionid),
           0
         ) AS download_count,
+
         COALESCE(
           FIRST(ts.sum_clicks),
           0
@@ -68,22 +84,10 @@ object FeatureMerge {
           FIRST(ts.std_downloads),
           0
         ) AS period_download_std,
-        COALESCE(
-          FIRST(dv.avematch),
-          0
-        ) AS delivery_ave_match,
-        COALESCE(
-          FIRST(dv.maxmatch),
-          0
-        ) AS delivery_max_match,
-        COALESCE(
-          FIRST(dv.varmatch),
-          0
-        ) AS delivery_var_match,
-        COALESCE(
-          FIRST(dl.avematch),
-          0
-        ) AS download_ave_match
+
+        ${formatMatchesFeatureSelects("dv", "delivery")},
+
+        ${formatMatchesFeatureSelects("dl", "download")}
 
       FROM (
         SELECT DISTINCT

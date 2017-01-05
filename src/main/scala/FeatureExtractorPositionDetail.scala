@@ -58,7 +58,7 @@ object FeatureExtractorPositionDetail {
 
     val rowRDD = textFiles
       .map(_.split("\001"))
-      .filter(xs => xs.length >= 18)
+      .filter(xs => xs.length >= 24)
       .map(xs => Row(xs(0), xs(1), xs(2), xs(3), xs(4),
         xs(6), xs(14), xs(15), xs(16), xs(17)))
 
