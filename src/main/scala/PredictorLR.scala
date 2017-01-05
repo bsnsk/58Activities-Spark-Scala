@@ -29,7 +29,7 @@ object PredictorLR {
         val array = r.split('(')(1).split(')')(0).split(", ")
         val activeness = array(0)
         val features = array.slice(1, array.size).map(_.toDouble)
-        (date.toInt, LabeledPoint(activeness.toInt, Vectors.dense(features)))
+        (date.toInt, LabeledPoint(activeness.toDouble.toInt, Vectors.dense(features)))
       })
 
     val dividerDate = 20161005

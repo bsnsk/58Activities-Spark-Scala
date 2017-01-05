@@ -167,7 +167,7 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
       .map(xs => (xs._1, xs._2._1 ++ xs._2._2))
       .join(aveMatches)
       .map(xs => Row.fromSeq(
-        xs._1._1 :: xs._1._2 :: (xs._2._1 ++ xs._2._2)
+        xs._1._1 :: xs._1._2 :: (xs._2._1 ++ xs._2._2).map(_.toString)
       ))
     matchesFull
   }
