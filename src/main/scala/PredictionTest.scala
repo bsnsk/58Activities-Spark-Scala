@@ -1,6 +1,6 @@
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.{Vectors, Vector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
@@ -13,11 +13,15 @@ import org.apache.spark.{SparkConf, SparkContext}
 abstract class PredictionTest {
 
   def predictionResultLabelsAndScores(
-                                   trainingData: RDD[LabeledPoint],
-                                   testData: RDD[(Int, LabeledPoint)]
-                                 ): RDD[(Int, (Int, Int))]
+                                       trainingData: RDD[(Double, Vector)],
+                                       testData: RDD[(Int, (Double, Vector))],
+                                       sqlContext: org.apache.spark.sql.SQLContext
+                                     ): RDD[(Int, (Int, Int))]
 
-  def acquireDividedData(sc: SparkContext): (RDD[LabeledPoint], RDD[(Int, LabeledPoint)]) = {
+  def acquireDividedData(sc: SparkContext): (
+      RDD[(Double, Vector)],
+      RDD[(Int, (Double, Vector))]
+    ) = {
     val labeledData = sc.textFile("hdfs:///user/shuyangshi/58data_labeledNoSQL/part-*")
 
     val data = labeledData
@@ -26,7 +30,7 @@ abstract class PredictionTest {
         val array = r.split('(')(1).split(')')(0).split(", ")
         val activeness = array(0)
         val features = array.slice(1, array.size).map(_.toDouble)
-        (date.toInt, LabeledPoint(activeness.toDouble.toInt, Vectors.dense(features)))
+        (date.toInt, (activeness.toDouble, Vectors.dense(features)))
       })
 
     val dividerDate = 20161005
@@ -34,11 +38,7 @@ abstract class PredictionTest {
       .map(r => r._2)
     val testData = data.filter(pair => pair._1 >= dividerDate)
 
-    //    val cntPositiveSamples = trainingData.filter(r => r.label.toInt == 1).count()
-    //    val cntNegativeSamples = trainingData.filter(r => r.label.toInt == 0).count()
-    //    val rate = (cntNegativeSamples.toDouble / cntPositiveSamples).toInt
-    val trainingDataBalanced = trainingData // TODO
-    (trainingDataBalanced, testData)
+    (trainingData, testData)
   }
 
   def evalPredictionResult(sc: SparkContext, testLabelsAndScores: RDD[(Int, (Int, Int))]): Unit = {
@@ -93,11 +93,13 @@ abstract class PredictionTest {
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("SparkPredictor")
     val sc = new SparkContext(conf)
+    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
-    val dataSet = acquireDividedData(sc)
+    val (training, test) = acquireDividedData(sc)
 
-    val testLabelsAndScores = predictionResultLabelsAndScores(dataSet._1, dataSet._2)
+    val testLabelsAndScores = predictionResultLabelsAndScores(training, test, sqlContext)
 
     evalPredictionResult(sc, testLabelsAndScores)
   }
+
 }
