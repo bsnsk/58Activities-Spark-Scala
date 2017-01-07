@@ -19,7 +19,7 @@ object PredictorLRML extends PredictionTest {
     val cntPositiveSamples = trainingData.filter(r => r._1 == 1).count()
     val cntNegativeSamples = trainingData.filter(r => r._1 == 0).count()
     val rate = cntNegativeSamples.toDouble / cntPositiveSamples.toDouble
-    val posWeight = scala.math.pow(rate, 1.5)
+
     println("BSNSK #rate = " + rate.toString + "#")
 
     val trainingDataWithWeight = trainingData
