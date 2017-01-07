@@ -56,7 +56,7 @@ object FeatureMerge {
         ) AS delivery_count,
 
         COALESCE(
-          COUNT(rd.positionid),
+          FIRST(rd.downcount),
           0
         ) AS download_count,
 

@@ -1,6 +1,7 @@
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.sql.functions.count
 
 /**
  * Resume Downloaded
@@ -75,17 +76,32 @@ object FeatureExtractorResumeDownloaded {
       """
         SELECT
           rd.resumeid,
-          DATE_FORMAT(rd.downtime, 'YYYYMMdd') AS downloaddate,
+          wc.downloaddate,
+          wc.downcount,
           ep.positionid
-        FROM 58data_resume_download rd
+        FROM (
+          SELECT
+            rd.resumeid,
+            DATE_FORMAT(FIRST(rd.downtime), 'YYYYMMdd') AS downloaddate,
+            COUNT(rd.downtime) AS downcount
+          FROM 58data_resume_download rd
+          WHERE
+            rd.resumeid <> '-'
+            AND (
+              DATE_FORMAT(rd.downtime, 'YYYYMMdd') LIKE '201609%'
+              OR DATE_FORMAT(rd.downtime, 'YYYYMMdd') LIKE '201610%'
+            )
+          GROUP BY
+            rd.resumeid,
+            DATE_FORMAT(rd.downtime, 'YYYYMMdd')
+        ) wc
+        JOIN 58data_resume_download rd
+        ON
+          rd.resumeid = wc.resumeid
+          AND wc.downloaddate = DATE_FORMAT(rd.downtime, 'YYYYMMdd')
         JOIN 58data_ent_position ep
         ON
           rd.entid = ep.entid
-          AND rd.resumeid <> '-'
-          AND (
-            DATE_FORMAT(rd.downtime, 'YYYYMMdd') LIKE '201609%'
-            OR DATE_FORMAT(rd.downtime, 'YYYYMMdd') LIKE '201610%'
-          )
       """.stripMargin)
 
     import sqlContext.implicits._
