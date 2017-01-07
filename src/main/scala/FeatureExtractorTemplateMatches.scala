@@ -14,9 +14,9 @@ import org.apache.spark.sql.Row
 class FeatureExtractorTemplateMatches extends java.io.Serializable {
 
   val featureString: String =
-    "max_match_rp_salary max_match_rp_education max_match_r_complete max_match_rr_salary " +
-    "var_match_rp_salary var_match_rp_education var_match_r_complete var_match_rr_salary " +
-    "ave_match_rp_salary ave_match_rp_education ave_match_r_complete ave_match_rr_salary"
+    "max_match_rp_salary max_match_rp_education max_match_r_complete max_match_rr_salary max_match_rp_gender " +
+    "var_match_rp_salary var_match_rp_education var_match_r_complete var_match_rr_salary var_match_rp_gender " +
+    "ave_match_rp_salary ave_match_rp_education ave_match_r_complete ave_match_rr_salary ave_match_rp_gender"
 
   val entryWeight: ((Int, Int) => Double) = (x: Int, y: Int) => abs(x-y).toDouble
 
@@ -34,9 +34,19 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
     }
   }
 
+  def calcGenderMatchWeight(genderResStr: String, genderPos: Int): Double = {
+    if (genderResStr == "-")
+      if (genderPos == -1) 0
+      else genderPos * 0.2 - 0.1
+    else if (genderPos == -1) genderPos - 0.5
+      else if (genderPos == genderResStr.toInt) 1
+        else -1
+  }
+
   def calcMatchFeatureLists(
                              actionByResume: RDD[(Any, (Any, Any))],
-                             sqlContext: org.apache.spark.sql.SQLContext
+                             sqlContext: org.apache.spark.sql.SQLContext,
+                             debug: Boolean = false
                            ): RDD[((Any, Any), List[Double])] = {
     val tableResumeDetail = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_resumes/*.parquet")
     val tablePositionDetail = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_positions/*.parquet")
@@ -73,7 +83,7 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
         )
       ))
 
-    val matches = actionByResume.join(dataResumeDetail)
+    val matchesHalf = actionByResume.join(dataResumeDetail)
       .map {
         case (resumeid, (
             (positionid, date),
@@ -97,6 +107,11 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
             nowsalary
           ))
       }
+
+    if (debug)
+      println("DEBUG #" + matchesHalf.count().toString)
+
+    val matches = matchesHalf
       .join(dataPositionDetail)
       .map {
         case (positionid, (
@@ -129,6 +144,12 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
               , calcStringFormula(reducation.toString, peducation.toString, entryWeight)
               , calcStringFormula(rcomplete.toString, "", (x:Int, _:Int) => x.toDouble / 10)
               , calcStringFormula(rtargetsalary.toString, rnowsalary.toString, entryWeight)
+              , calcGenderMatchWeight(
+                  rgender.toString,
+                  if (ptitle.toString.indexOf("男") != -1) 0
+                  else if (ptitle.toString.indexOf("女") != -1) 1
+                  else -1
+              )
             )
           )
       }
