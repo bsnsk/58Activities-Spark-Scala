@@ -25,7 +25,7 @@ object FeatureExtractorDownloadMatches extends FeatureExtractorTemplateMatches {
         ))
       .distinct()
 
-    val downloadMatches = calcMatchFeatureLists(downloadByResume, sqlContext)
+    val downloadMatches = calcMatchFeatureLists(downloadByResume, sqlContext, true)
     val downloadMatchesFull = calcMatchStatisticsFeatures(downloadMatches)
 
     val schemaString = "resumeid downloaddate " + featureString

@@ -83,6 +83,9 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
         )
       ))
 
+    if (debug)
+      println("[DEBUG] # of Actions: " + actionByResume.count().toString)
+
     val matchesHalf = actionByResume.join(dataResumeDetail)
       .map {
         case (resumeid, (
@@ -109,7 +112,7 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
       }
 
     if (debug)
-      println("DEBUG #" + matchesHalf.count().toString)
+      println("[DEBUG] # of ActionJoinedByResumes: " + matchesHalf.count().toString)
 
     val matches = matchesHalf
       .join(dataPositionDetail)
@@ -153,6 +156,9 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
             )
           )
       }
+    if (debug)
+      println("[DEBUG] # of ActionJoinedByResumesAndPositions: " + matches.count().toString)
+
     matches
   }
 
