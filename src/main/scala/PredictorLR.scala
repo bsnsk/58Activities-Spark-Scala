@@ -17,9 +17,16 @@ object PredictorLR extends PredictionTest {
                        sqlContext: org.apache.spark.sql.SQLContext
                      ): RDD[(Int, (Int, Int))] = {
 
+    val cntPositiveSamples = trainingData.filter(r => r._1 == 1).count()
+    val cntNegativeSamples = trainingData.filter(r => r._1 == 0).count()
+    val rate = (cntNegativeSamples.toDouble / cntPositiveSamples.toDouble).toInt
+
     val numIterations = 10
     val lrModel = LogisticRegressionWithSGD.train(
-      trainingData.map(xs => LabeledPoint(xs._1, xs._2)),
+      trainingData.flatMap(xs =>
+        if (xs._1.toInt == 1) List.fill(rate)(LabeledPoint(xs._1, xs._2))
+        else List(LabeledPoint(xs._1, xs._2)
+      )),
       numIterations
     )
     testData

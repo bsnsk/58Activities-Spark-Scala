@@ -26,7 +26,10 @@ object FeatureExtractorDeliveryMatches extends FeatureExtractorTemplateMatches {
       ))
       .distinct()
 
-    val deliveryMatches = calcMatchFeatureLists(deliveryByResume, sqlContext, true)
+    val deliveryMatches = calcMatchFeatureListsWithPositionId(
+      deliveryByResume,
+      sqlContext
+    )
     val deliveryMatchesFull = calcMatchStatisticsFeatures(deliveryMatches)
 
     val schemaString = "resumeid deliverydate " + featureString

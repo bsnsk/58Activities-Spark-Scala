@@ -27,7 +27,8 @@ object FeatureExtractorPositionDetail {
           salary,
           education,
           experience,
-          trade
+          trade,
+          entid
         FROM 58data_positions
         WHERE
           infoid <> '-'
@@ -49,7 +50,7 @@ object FeatureExtractorPositionDetail {
     val textFiles = sc.textFile("hdfs:///zp/58Data/position/position_*")
 
     val schemaString = "infoid adddate cate1 cate2 cate3 " +
-      "title salary education experience trade"
+      "title entid salary education experience trade"
     val dataStructure = new StructType(
       schemaString.split(" ").map(fieldName =>
         StructField(fieldName, StringType, nullable = false)
@@ -60,7 +61,7 @@ object FeatureExtractorPositionDetail {
       .map(_.split("\001"))
       .filter(xs => xs.length >= 24)
       .map(xs => Row(xs(0), xs(1), xs(2), xs(3), xs(4),
-        xs(6), xs(14), xs(15), xs(16), xs(17)))
+        xs(6), xs(7), xs(14), xs(15), xs(16), xs(17)))
 
     val namedDF = sqlContext.createDataFrame(
       rowRDD,

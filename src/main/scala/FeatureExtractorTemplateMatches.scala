@@ -43,7 +43,7 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
         else -1
   }
 
-  def calcMatchFeatureLists(
+  def calcMatchFeatureListsWithPositionId(
                              actionByResume: RDD[(Any, (Any, Any))],
                              sqlContext: org.apache.spark.sql.SQLContext,
                              debug: Boolean = false
@@ -79,7 +79,8 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
           xs(6),
           xs(7),
           xs(8),
-          xs(9)
+          xs(9),
+          xs(10)
         )
       ))
 
@@ -139,7 +140,8 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
           psalary,
           peducation,
           pexperience,
-          ptrade
+          ptrade,
+          entid
         )
         )) =>
           ( (resumeid, rdate),
@@ -162,6 +164,126 @@ class FeatureExtractorTemplateMatches extends java.io.Serializable {
     matches
   }
 
+  def calcMatchFeatureListsWithEntUserId(
+                                           actionByResume: RDD[(Any, (Any, Any))],
+                                           sqlContext: org.apache.spark.sql.SQLContext,
+                                           debug: Boolean = false
+                                         ): RDD[((Any, Any), List[Double])] = {
+    val tableResumeDetail = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_resumes/*.parquet")
+    val tablePositionDetail = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_positions/*.parquet")
+
+    val dataResumeDetail = tableResumeDetail
+      .map(xs => (
+        xs(0),
+        ( xs(2),
+          xs(3),
+          xs(4),
+          xs(5),
+          xs(6),
+          xs(7),
+          xs(8),
+          xs(9),
+          xs(10),
+          xs(11)
+        )
+      ))
+
+    val dataPositionDetail = tablePositionDetail
+      .map(xs => (
+        xs(10),
+        (
+          xs(0),
+          xs(1),
+          xs(2),
+          xs(3),
+          xs(4),
+          xs(5),
+          xs(6),
+          xs(7),
+          xs(8),
+          xs(9)
+        )
+      ))
+
+    if (debug)
+      println("[DEBUG] # of Actions: " + actionByResume.count().toString)
+
+    val matchesHalf = actionByResume.join(dataResumeDetail)
+      .map {
+        case (resumeid, (
+          (entuserid, date),
+          (nowposition, targetcategory, targetposition,
+          targetsalary, education, gender,
+          jobstate, areaid, complete, nowsalary
+            )
+          )) =>
+          (entuserid, (
+            resumeid,
+            date,
+            nowposition,
+            targetcategory,
+            targetposition,
+            targetsalary,
+            education,
+            gender,
+            jobstate,
+            areaid,
+            complete,
+            nowsalary
+          ))
+      }
+
+    if (debug)
+      println("[DEBUG] # of ActionJoinedByResumes: " + matchesHalf.count().toString)
+
+    val matches = matchesHalf
+      .join(dataPositionDetail)
+      .map {
+        case (entuserid, (
+          ( resumeid,
+          rdate,
+          rnowposition,
+          rtargetcategory,
+          rtargetposition,
+          rtargetsalary,
+          reducation,
+          rgender,
+          rjobstate,
+          rareaid,
+          rcomplete,
+          rnowsalary
+            ),
+          ( positionid,
+          padddate,
+          pcategory1,
+          pcategory2,
+          pcategory3,
+          ptitle,
+          psalary,
+          peducation,
+          pexperience,
+          ptrade
+            )
+          )) =>
+          ( (resumeid, rdate),
+            List(calcStringFormula(rtargetsalary.toString, psalary.toString, entryWeight)
+              , calcStringFormula(reducation.toString, peducation.toString, entryWeight)
+              , calcStringFormula(rcomplete.toString, "", (x:Int, _:Int) => x.toDouble / 10)
+              , calcStringFormula(rtargetsalary.toString, rnowsalary.toString, entryWeight)
+              , calcGenderMatchWeight(
+                rgender.toString,
+                if (ptitle.toString.indexOf("男") != -1) 0
+                else if (ptitle.toString.indexOf("女") != -1) 1
+                else -1
+              )
+            )
+          )
+      }
+    if (debug)
+      println("[DEBUG] # of ActionJoinedByResumesAndPositions: " + matches.count().toString)
+
+    matches
+  }
   def calcMatchStatisticsFeatures(matches: RDD[((Any, Any), List[Double])]): RDD[Row] = {
     val countMatches = matches.map(xs => (xs._1, 1.toDouble)).reduceByKey(_+_)
     val sumMatches = matches.reduceByKey((xs, ys) => (xs, ys).zipped.map(_+_))

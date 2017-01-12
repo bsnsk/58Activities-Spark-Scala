@@ -18,7 +18,7 @@ object FeatureExtractorResumeDownloaded {
 
     val textFiles = sc.textFile("hdfs:///zp/58Data/resumedown/resumedown_*")
 
-    val schemaString = "entid resumeuserid resumeid downtime "
+    val schemaString = "entid resumeuserid resumeid downtime entuserid"
     val dataStructure = new StructType(
         schemaString.split(" ").map(fieldName =>
           StructField(fieldName, StringType, nullable = false)
@@ -28,7 +28,7 @@ object FeatureExtractorResumeDownloaded {
     val rowRDD = textFiles
       .map(_.split("\001"))
       .filter(xs => xs.length >= 13)
-      .map(xs => Row(xs(4), xs(7), xs(8), xs(12)))
+      .map(xs => Row(xs(4), xs(7), xs(8), xs(12), xs(2)))
 
     val namedDF = sqlContext.createDataFrame(
       rowRDD,
@@ -38,39 +38,12 @@ object FeatureExtractorResumeDownloaded {
     namedDF.registerTempTable("58data_resume_download")
   }
 
-  def createTableEntPosition(sc: SparkContext,
-                                sqlContext: org.apache.spark.sql.SQLContext
-                                 ) = {
-
-    val textFiles = sc.textFile("hdfs:///zp/58Data/enterprise_re_user/enterprise_re_user_*")
-
-    val schemaString = "positionid userid entid "
-    val dataStructure = new StructType(
-      schemaString.split(" ").map(fieldName =>
-        StructField(fieldName, StringType, nullable = false)
-      )
-    )
-
-    val rowRDD = textFiles
-      .map(_.split("\001"))
-      .filter(xs => xs.length >= 3)
-      .map(xs => Row(xs(0), xs(1), xs(2)))
-
-    val namedDF = sqlContext.createDataFrame(
-      rowRDD,
-      dataStructure
-    )
-
-    namedDF.registerTempTable("58data_ent_position")
-  }
-
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("SparkFeatureExtractor")
     val sc = new SparkContext(conf)
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
     createTableResumeDownload(sc, sqlContext)
-    createTableEntPosition(sc, sqlContext)
 
     val results = sqlContext.sql(
       """
@@ -78,7 +51,7 @@ object FeatureExtractorResumeDownloaded {
           rd.resumeid,
           wc.downloaddate,
           wc.downcount,
-          ep.positionid
+          rd.entuserid
         FROM (
           SELECT
             rd.resumeid,
@@ -99,9 +72,6 @@ object FeatureExtractorResumeDownloaded {
         ON
           rd.resumeid = wc.resumeid
           AND wc.downloaddate = DATE_FORMAT(rd.downtime, 'YYYYMMdd')
-        JOIN 58data_ent_position ep
-        ON
-          rd.entid = ep.entid
       """.stripMargin)
 
     import sqlContext.implicits._
