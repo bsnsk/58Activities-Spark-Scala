@@ -69,6 +69,10 @@ object FeatureMerge {
           0
         ) AS period_click_std,
         COALESCE(
+          FIRST(ts.max_clicks),
+          0
+        ) AS period_click_max,
+        COALESCE(
           FIRST(ts.sum_deliveries),
           0
         ) AS period_delivery_count,
@@ -77,6 +81,10 @@ object FeatureMerge {
           0
         ) AS period_delivery_std,
         COALESCE(
+          FIRST(ts.max_deliveries),
+          0
+        ) AS period_delivery_max,
+        COALESCE(
           FIRST(ts.sum_downloads),
           0
         ) AS period_download_count,
@@ -84,6 +92,10 @@ object FeatureMerge {
           FIRST(ts.std_downloads),
           0
         ) AS period_download_std,
+        COALESCE(
+          FIRST(ts.max_downloads),
+          0
+        ) AS period_download_max,
 
         ${formatMatchesFeatureSelects("dv", "delivery")},
 

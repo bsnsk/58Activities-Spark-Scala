@@ -44,7 +44,8 @@ object FeatureExtractorTimeSeries {
          |  uc_period.resumeid,
          |  uc_period.date,
          |  SUM(uc_period.daily_count) AS clicks_sum,
-         |  STDDEV_POP(uc_period.daily_count) AS clicks_std
+         |  STDDEV_POP(uc_period.daily_count) AS clicks_std,
+         |  MAX(uc_period.daily_count) AS clicks_max
          | FROM (
          |  SELECT
          |    uc.resumeid,
@@ -96,7 +97,8 @@ object FeatureExtractorTimeSeries {
         |  ud_period.resumeid,
         |  ud_period.date,
         |  SUM(ud_period.daily_count) AS deliveries_sum,
-        |  STDDEV_POP(ud_period.daily_count) AS deliveries_std
+        |  STDDEV_POP(ud_period.daily_count) AS deliveries_std,
+        |  MAX(ud_period.daily_count) AS deliveries_max
         | FROM (
         |  SELECT
         |    ud.resumeid,
@@ -136,9 +138,8 @@ object FeatureExtractorTimeSeries {
         |SELECT
         | resumeid,
         | downloaddate AS date,
-        | COUNT(positionid) AS daily_count
+        | downcount AS daily_count
         |FROM 58data_resumedownloads
-        |GROUP BY resumeid, downloaddate
       """.stripMargin)
     .registerTempTable("58temp_daily_resumedownloads")
 
@@ -148,7 +149,8 @@ object FeatureExtractorTimeSeries {
         |  rd_period.resumeid,
         |  rd_period.date,
         |  SUM(rd_period.daily_count) AS downloads_sum,
-        |  STDDEV_POP(rd_period.daily_count) AS downloads_std
+        |  STDDEV_POP(rd_period.daily_count) AS downloads_std,
+        |  MAX(rd_period.daily_count) AS downloads_max
         | FROM (
         |  SELECT
         |    rd.resumeid,
@@ -184,22 +186,24 @@ object FeatureExtractorTimeSeries {
     dataDownloads.registerTempTable("58temp_time_resumedownloads")
 
     val dataAll = dataClicks
-      .map(xs => ((xs(0), xs(1)), (xs(2), xs(3))))
+      .map(xs => ((xs(0), xs(1)), (xs(2), xs(3), xs(4))))
       .filter(xs => xs._1._1 != null && xs._1._2 != null && xs._2 != null)
       .fullOuterJoin(dataDeliveries
-        .map(xs => ((xs(0), xs(1)), (xs(2), xs(3))))
+        .map(xs => ((xs(0), xs(1)), (xs(2), xs(3), xs(4))))
         .filter(xs => xs._1._1 != null && xs._1._2 != null && xs._2 != null)
       )
       .map {
         case (key, (numClicks, numDeliveries)) => (key, (
           if (numClicks.isDefined) numClicks.get._1.toString else "0",
           if (numClicks.isDefined) numClicks.get._2.toString else "0",
+          if (numClicks.isDefined) numClicks.get._3.toString else "0",
           if (numDeliveries.isDefined) numDeliveries.get._1.toString else "0",
-          if (numDeliveries.isDefined) numDeliveries.get._2.toString else "0"
+          if (numDeliveries.isDefined) numDeliveries.get._2.toString else "0",
+          if (numDeliveries.isDefined) numDeliveries.get._3.toString else "0"
         ))
       }
       .fullOuterJoin(dataDownloads
-        .map(xs => ((xs(0), xs(1)), (xs(2), xs(3))))
+        .map(xs => ((xs(0), xs(1)), (xs(2), xs(3), xs(4))))
       )
       .map {
         case (key, (exist, numDownloads)) => Row(
@@ -209,12 +213,18 @@ object FeatureExtractorTimeSeries {
           if (exist.isDefined) exist.get._2 else "0",
           if (exist.isDefined) exist.get._3 else "0",
           if (exist.isDefined) exist.get._4 else "0",
+          if (exist.isDefined) exist.get._5 else "0",
+          if (exist.isDefined) exist.get._6 else "0",
           if (numDownloads.isDefined) numDownloads.get._1.toString else "0",
-          if (numDownloads.isDefined) numDownloads.get._2.toString else "0"
+          if (numDownloads.isDefined) numDownloads.get._2.toString else "0",
+          if (numDownloads.isDefined) numDownloads.get._3.toString else "0"
         )
       }
 
-    val schemaString = "resumeid date sum_clicks std_clicks sum_deliveries std_deliveries sum_downloads std_downloads"
+    val schemaString = "resumeid date " +
+      "sum_clicks std_clicks max_clicks " +
+      "sum_deliveries std_deliveries max_deliveries " +
+      "sum_downloads std_downloads max_downloads"
     val dataStructure = new StructType(
       schemaString.split(" ").map(fieldName =>
         StructField(fieldName, StringType, nullable = false)
