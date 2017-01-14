@@ -8,6 +8,9 @@ import org.apache.spark.rdd.RDD
   * Created by Ivan on 2017/1/7.
   */
 object PredictorDTML extends PredictionTest {
+
+  override var identifier: String = "DTML"
+
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(Double, Vector)],
                                        testData: RDD[(Int, (Double, Vector))],

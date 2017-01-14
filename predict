@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+if [[ $# == "1" ]]
+then 
+  echo "running automaton for Predictor-$1"
+  ./automaton Predictor$1
+  ./pullTestResult $1
+  echo "result pulled! Check result!"
+else 
+  echo "invalid arguments"
+fi

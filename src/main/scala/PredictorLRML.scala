@@ -10,6 +10,8 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 object PredictorLRML extends PredictionTest {
 
+  override var identifier: String = "LRML"
+
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(Double, Vector)],
                                        testData: RDD[(Int, (Double, Vector))],

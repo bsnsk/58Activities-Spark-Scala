@@ -12,6 +12,8 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 abstract class PredictionTest {
 
+  var identifier: String
+
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(Double, Vector)],
                                        testData: RDD[(Int, (Double, Vector))],
@@ -82,7 +84,7 @@ abstract class PredictionTest {
     val testMeasures = auROCs.join(f1MeasureScores)
       .sortByKey(ascending = true, numPartitions = 1)
 
-    val outputPath = "hdfs:///user/shuyangshi/58prediction_test"
+    val outputPath = "hdfs:///user/shuyangshi/58PredictionTest" + identifier
     val fs = FileSystem.get(sc.hadoopConfiguration)
     fs.delete(new Path(outputPath), true)
 

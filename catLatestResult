@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+key=$1
+folder=$(ls -lat testResults | grep $key | head -1 | awk 'BEGIN{IFS=" "}{print $9}')
+echo $folder
+cat ./testResults/$folder/part*

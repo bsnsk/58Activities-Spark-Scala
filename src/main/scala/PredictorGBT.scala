@@ -12,6 +12,8 @@ import org.apache.spark.rdd.RDD
   */
 object PredictorGBT extends PredictionTest {
 
+  override var identifier: String = "GBT"
+
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(Double, Vector)],
                                        testData: RDD[(Int, (Double, Vector))],
