@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-ssh changping12 "rm -rf ./bsnsk/58PredictionResult"
+ssh changping12 "rm -rf ./bsnsk/58PredictionResult$1"
 ssh changping12 "hadoop fs -copyToLocal /user/shuyangshi/58PredictionTest$1 ./bsnsk/58PredictionResult$1"
 scp -r changping12:~/bsnsk/58PredictionResult$1 ./testResults/$(date +%Y%m%d%H%M%S)$1
