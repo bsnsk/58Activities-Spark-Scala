@@ -13,6 +13,7 @@ import org.apache.spark.rdd.RDD
 object PredictorGBT extends PredictionTest {
 
   override var identifier: String = "GBT"
+  override var addTimeFeature: Boolean = false
 
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(Double, Vector)],

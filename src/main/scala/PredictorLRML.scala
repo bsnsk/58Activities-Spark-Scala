@@ -11,6 +11,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 object PredictorLRML extends PredictionTest {
 
   override var identifier: String = "LRML"
+  override var addTimeFeature: Boolean = false
 
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(Double, Vector)],

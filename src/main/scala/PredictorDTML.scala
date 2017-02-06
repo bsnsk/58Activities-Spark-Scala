@@ -10,6 +10,7 @@ import org.apache.spark.rdd.RDD
 object PredictorDTML extends PredictionTest {
 
   override var identifier: String = "DTML"
+  override var addTimeFeature: Boolean = false
 
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(Double, Vector)],

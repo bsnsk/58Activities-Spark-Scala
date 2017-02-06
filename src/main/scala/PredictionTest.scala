@@ -1,6 +1,9 @@
+import java.text.SimpleDateFormat
+import java.util.Calendar
+
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
-import org.apache.spark.mllib.linalg.{Vectors, Vector}
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
@@ -10,9 +13,11 @@ import org.apache.spark.{SparkConf, SparkContext}
   * Predictors need only to implement function `predictionResultLabelsAndScores`
   * Created by Ivan on 2017/1/5.
   */
-abstract class PredictionTest {
+abstract class PredictionTest extends Serializable {
 
   var identifier: String
+  var maxDayOfYear: Double = -1
+  var addTimeFeature: Boolean
 
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(Double, Vector)],
@@ -32,7 +37,18 @@ abstract class PredictionTest {
         val array = r.split('(')(1).split(')')(0).split(", ")
         val activeness = array(0)
         val features = array.slice(1, array.size).map(_.toDouble)
-        (date.toInt, (activeness.toDouble, Vectors.dense(features)))
+
+        val sdf = new SimpleDateFormat("yyyyMMdd")
+        val dateInstance = Calendar.getInstance()
+        dateInstance.setTime(sdf.parse(date))
+        val dayOfYear = dateInstance.get(Calendar.DAY_OF_YEAR).toDouble
+        if (dayOfYear > maxDayOfYear) {
+          maxDayOfYear = dayOfYear // WARNING: Might be a glitch if the data cross different years
+        }
+        (date.toInt, (activeness.toDouble,
+          if (addTimeFeature) Vectors.dense(features :+ dayOfYear)
+          else Vectors.dense(features)
+        ))
       })
 
     val dividerDate = 20161005

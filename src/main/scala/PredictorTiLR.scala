@@ -6,27 +6,34 @@ import org.apache.spark.mllib.util.MLUtils
 import scala.math
 
 /**
-  * Created by Ivan on 2017/1/16.
+  * Created by Ivan on 2017/2/6.
   */
-object PredictorLRSGD extends PredictionTest {
+object PredictorTiLR extends PredictionTest {
 
-  override var identifier: String = "LRSGD"
-  override var addTimeFeature: Boolean = false
+  override var identifier: String = "TiLR"
+  override var addTimeFeature: Boolean = true
 
   class myGradient extends Gradient {
     override def compute(data: Vector, label: Double, weights: Vector, cumGradient: Vector): Double = {
 
       val margin = -1.0 * (data.toArray, weights.toArray).zipped.map(_*_).sum
       val multiplier = (1.0 / (1.0 + math.exp(margin))) - label
+
+      val numFeatures = data.size
+      val dateParameter = 0.1
+      val dateMultiplier = math.exp(- dateParameter * (maxDayOfYear - data(numFeatures - 1)))
+
       //y += a * x，即cumGradient += multiplier * data
       var accumulativeGradient = cumGradient.toDense.values
       data.foreachActive((i, feature) => {
-        accumulativeGradient(i) += multiplier * feature
+        if (i < numFeatures - 1) {
+          accumulativeGradient(i) += multiplier * feature * dateMultiplier
+        }
       })
       if (label > 0.5) {
-        math.log(1 + math.exp(margin))
+        dateMultiplier * math.log(1 + math.exp(margin))
       } else {
-        math.log(1 + math.exp(margin)) - margin
+        dateMultiplier * (math.log(1 + math.exp(margin)) - margin)
       }
 
     }
@@ -40,7 +47,7 @@ object PredictorLRSGD extends PredictionTest {
     val convergenceTol = 1e-4
     val numIterations = 10
     val regParam = 0.01
-    val initialWeights = Vectors.dense(Array.fill(trainingData.first()._2.size)(0.0))
+    val initialWeights = Vectors.dense(Array.fill(trainingData.first()._2.size - 1)(0.0))
     val gradient = new myGradient()
 
     val cntPositiveSamples = trainingData.filter(r => r._1 == 1).count()

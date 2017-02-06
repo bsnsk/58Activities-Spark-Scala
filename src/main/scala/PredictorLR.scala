@@ -12,6 +12,7 @@ import org.apache.spark.rdd.RDD
 object PredictorLR extends PredictionTest {
 
   override var identifier: String = "LR"
+  override var addTimeFeature: Boolean = false
 
   def predictionResultLabelsAndScores(
                        trainingData: RDD[(Double, Vector)],
