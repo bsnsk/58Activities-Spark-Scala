@@ -15,27 +15,27 @@ object PredictorLR extends PredictionTest {
   override var addTimeFeature: Boolean = false
 
   def predictionResultLabelsAndScores(
-                       trainingData: RDD[(Double, Vector)],
-                       testData: RDD[(Int, (Double, Vector))],
+                       trainingData: RDD[(String, Int, (Double, Vector))],
+                       testData: RDD[(String, Int, (Double, Vector))],
                        sqlContext: org.apache.spark.sql.SQLContext
                      ): RDD[(Int, (Int, Int))] = {
 
-    val cntPositiveSamples = trainingData.filter(r => r._1 == 1).count()
-    val cntNegativeSamples = trainingData.filter(r => r._1 == 0).count()
+    val cntPositiveSamples = trainingData.filter(r => r._3._1 == 1).count()
+    val cntNegativeSamples = trainingData.filter(r => r._3._1 == 0).count()
     val rate = (cntNegativeSamples.toDouble / cntPositiveSamples.toDouble).toInt
 
     val numIterations = 10
     val lrModel = LogisticRegressionWithSGD.train(
       trainingData.flatMap(xs =>
-        if (xs._1.toInt == 1) List.fill(rate)(LabeledPoint(xs._1, xs._2))
-        else List(LabeledPoint(xs._1, xs._2)
+        if (xs._3._1.toInt == 1) List.fill(rate)(LabeledPoint(xs._3._1, xs._3._2))
+        else List(LabeledPoint(xs._3._1, xs._3._2)
       )),
       numIterations
     )
     testData
       .map(data => {
-        val prediction = lrModel.predict(data._2._2)
-        (data._1, (data._2._1.toInt, prediction.toInt))
+        val prediction = lrModel.predict(data._3._2)
+        (data._2, (data._3._1.toInt, prediction.toInt))
       })
   }
 

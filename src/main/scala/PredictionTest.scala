@@ -19,42 +19,53 @@ abstract class PredictionTest extends Serializable {
   var maxDayOfYear: Double = -1
   var addTimeFeature: Boolean
 
+  var numberOfFeatures: Int = -1
+
   def predictionResultLabelsAndScores(
-                                       trainingData: RDD[(Double, Vector)],
-                                       testData: RDD[(Int, (Double, Vector))],
+                                       trainingData: RDD[(String, Int, (Double, Vector))],
+                                       testData: RDD[(String, Int, (Double, Vector))],
                                        sqlContext: org.apache.spark.sql.SQLContext
                                      ): RDD[(Int, (Int, Int))]
 
   def acquireDividedData(sc: SparkContext): (
-      RDD[(Double, Vector)],
-      RDD[(Int, (Double, Vector))]
+      RDD[(String, Int, (Double, Vector))],
+      RDD[(String, Int, (Double, Vector))]
     ) = {
     val labeledData = sc.textFile("hdfs:///user/shuyangshi/58data_labeledNoSQL/part-*")
 
     val data = labeledData
       .map(r => {
-        val date = r.split(',')(0).split('[')(1)
+        val id = r.split(',')(0).split('[')(1)
+        val date = r.split(',')(1)
         val array = r.split('(')(1).split(')')(0).split(", ")
         val activeness = array(0)
-        val features = array.slice(1, array.size).map(_.toDouble)
 
-        val sdf = new SimpleDateFormat("yyyyMMdd")
-        val dateInstance = Calendar.getInstance()
-        dateInstance.setTime(sdf.parse(date))
-        val dayOfYear = dateInstance.get(Calendar.DAY_OF_YEAR).toDouble
-        if (dayOfYear > maxDayOfYear) {
-          maxDayOfYear = dayOfYear // WARNING: Might be a glitch if the data cross different years
+        try {
+          val features = array.slice(1, array.size).map(_.toDouble)
+          val sdf = new SimpleDateFormat("yyyyMMdd")
+          val dateInstance = Calendar.getInstance()
+          dateInstance.setTime(sdf.parse(date))
+          val dayOfYear = dateInstance.get(Calendar.DAY_OF_YEAR).toDouble
+          (id.toString, date.toLong, (activeness.toDouble,
+            if (addTimeFeature) Vectors.dense(features :+ dayOfYear)
+            else Vectors.dense(features)
+          ))
         }
-        (date.toInt, (activeness.toDouble,
-          if (addTimeFeature) Vectors.dense(features :+ dayOfYear)
-          else Vectors.dense(features)
-        ))
-      })
+        catch {
+          case _: Throwable =>
+            (id.toString, -1, (0.toDouble,
+              Vectors.dense(Array.fill(array.size)(0.0))
+            ))
+        }
+      }: (String, Long, (Double, Vector)))
+
+    println("#BSNSK calculated numOfFeatures is " + numberOfFeatures.toString)
 
     val dividerDate = 20161005
-    val trainingData = data.filter(pair => pair._1 <= dividerDate)
-      .map(r => r._2)
-    val testData = data.filter(pair => pair._1 >= dividerDate)
+    val trainingData = data.filter(pair => pair._2 <= dividerDate && pair._2 > 0)
+      .map(r => (r._1, r._2.toInt, r._3))
+    val testData = data.filter(pair => pair._2 >= dividerDate && pair._2 > 0 && pair._2 <= 20181010)
+      .map(r => (r._1, r._2.toInt, r._3))
 
     (trainingData, testData)
   }

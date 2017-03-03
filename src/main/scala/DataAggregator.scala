@@ -39,8 +39,16 @@ object DataAggregator {
           .distinct()
       )
       .map{
-        case (key, (features, None)) => (key._2.toString,  0.toDouble :: features.map(_.toString.toDouble).toList)
-        case (key, (features, label)) => (key._2.toString,  1.toDouble :: features.map(_.toString.toDouble).toList)
+        case (key, (features, None)) => (
+          key._1.toString,
+          key._2.toString,
+          0.toDouble :: features.map(_.toString.toDouble).toList
+        )
+        case (key, (features, label)) => (
+          key._1.toString,
+          key._2.toString,
+          1.toDouble :: features.map(_.toString.toDouble).toList
+        )
                                                                             // __WARNING__: Labels fetched
                                                                             // previously contain only active ones
       }
@@ -50,7 +58,7 @@ object DataAggregator {
     val fs = FileSystem.get(sc.hadoopConfiguration)
     fs.delete(new Path(outputPath), true)
     labeledDataNoSQL
-      .repartition($"_1")
+      .repartition($"_2")
       .rdd
       .saveAsTextFile(outputPath)
   }

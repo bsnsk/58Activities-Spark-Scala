@@ -40,25 +40,35 @@ object PredictorTiLR extends PredictionTest {
   }
 
   def predictionResultLabelsAndScores(
-                                       trainingData: RDD[(Double, Vector)],
-                                       testData: RDD[(Int, (Double, Vector))],
+                                       trainingData: RDD[(String, Int, (Double, Vector))],
+                                       testData: RDD[(String, Int, (Double, Vector))],
                                        sqlContext: org.apache.spark.sql.SQLContext
                                      ): RDD[(Int, (Int, Int))] = {
     val convergenceTol = 1e-4
     val numIterations = 10
     val regParam = 0.01
-    val initialWeights = Vectors.dense(Array.fill(trainingData.first()._2.size - 1)(0.0))
+    val nF = trainingData.first()._3._2.size - 1
+    numberOfFeatures = nF
+    val initialWeights = Vectors.dense(Array.fill(nF)(0.0))
+
+    println("BSNSK #Feature " + (trainingData.first()._3._2.size - 1).toString + " " + numberOfFeatures.toString)
+    println("BSNSK MaxDayOfYear " + maxDayOfYear.toString)
+    maxDayOfYear = trainingData.map(r =>
+      r._3._2(nF)
+    ).max().toInt
+    println("BSNSK MaxDayOfYear (updated) " + maxDayOfYear.toString)
+
     val gradient = new myGradient()
 
-    val cntPositiveSamples = trainingData.filter(r => r._1 == 1).count()
-    val cntNegativeSamples = trainingData.filter(r => r._1 == 0).count()
+    val cntPositiveSamples = trainingData.filter(r => r._3._1 == 1).count()
+    val cntNegativeSamples = trainingData.filter(r => r._3._1 == 0).count()
     val rate = (cntNegativeSamples.toDouble / cntPositiveSamples.toDouble).toInt
 
     val weights = GradientDescent
       .runMiniBatchSGD(
         trainingData.flatMap(xs =>
-          if (xs._1.toInt == 1) List.fill(rate)(xs)
-          else List(xs)
+          if (xs._3._1.toInt == 1) List.fill(rate)(xs._3)
+          else List(xs._3)
         ),
         gradient,
         new SquaredL2Updater(),
@@ -76,8 +86,8 @@ object PredictorTiLR extends PredictionTest {
 
     testData
       .map(data => {
-        val prediction = if (calcScore(data._2._2) > 0.5) 1 else 0
-        (data._1, (data._2._1.toInt, prediction.toInt))
+        val prediction = if (calcScore(data._3._2) > 0.5) 1 else 0
+        (data._2, (data._3._1.toInt, prediction.toInt))
       })
 
   }

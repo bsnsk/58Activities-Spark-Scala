@@ -14,19 +14,19 @@ object PredictorLRML extends PredictionTest {
   override var addTimeFeature: Boolean = false
 
   def predictionResultLabelsAndScores(
-                                       trainingData: RDD[(Double, Vector)],
-                                       testData: RDD[(Int, (Double, Vector))],
+                                       trainingData: RDD[(String, Int, (Double, Vector))],
+                                       testData: RDD[(String, Int, (Double, Vector))],
                                        sqlContext: org.apache.spark.sql.SQLContext
                                      ): RDD[(Int, (Int, Int))] = {
     import sqlContext.implicits._
-    val cntPositiveSamples = trainingData.filter(r => r._1 == 1).count()
-    val cntNegativeSamples = trainingData.filter(r => r._1 == 0).count()
+    val cntPositiveSamples = trainingData.filter(r => r._3._1 == 1).count()
+    val cntNegativeSamples = trainingData.filter(r => r._3._1 == 0).count()
     val rate = cntNegativeSamples.toDouble / cntPositiveSamples.toDouble
 
     println("BSNSK #rate = " + rate.toString + "#")
 
     val trainingDataWithWeight = trainingData
-      .map(xs => (xs._1, xs._2, if (xs._1 == 1) 1.0 else 1.0 / rate))
+      .map(xs => (xs._3._1, xs._3._2, if (xs._3._1 == 1) 1.0 else 1.0 / rate))
       .toDF("label", "feature", "weight")
 
     val lrModel = new LogisticRegression()
@@ -36,7 +36,7 @@ object PredictorLRML extends PredictionTest {
       .setMaxIter(10)
       .fit(trainingDataWithWeight)
 
-    lrModel.transform(testData.map(xs => (xs._1, xs._2._1, xs._2._2)).toDF("date", "label", "feature"))
+    lrModel.transform(testData.map(xs => (xs._2, xs._3._1, xs._3._2)).toDF("date", "label", "feature"))
       .select($"date", $"label", $"prediction")
       .rdd
       .map(xs => (xs(0).toString.toDouble.toInt, (xs(1).toString.toDouble.toInt, xs(2).toString.toDouble.toInt)))
