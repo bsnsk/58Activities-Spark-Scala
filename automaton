@@ -7,10 +7,10 @@ if
 then
   echo -e "===== build success! =====\n\n"
   echo -e "===== build success! =====\n\n" >> output.log
-  scp ./target/scala-2.10/scalaspark_2.10-1.0.jar changping12:~/bsnsk/
+  scp ./target/scala-2.10/scalaspark_2.10-1.0.jar daim209:~/bsnsk/
   echo -e "===== upload success! =====\n\n"
   echo -e "===== upload success! =====\n\n" >> output.log
-  result=$(ssh changping12 "/mnt/disk1/daim/spark-1.6.1-bin-without-hadoop/bin/spark-submit --class \"$1\" --master yarn --num-executors 7 --executor-memory 2G ~/bsnsk/scalaspark_2.10-1.0.jar 2>&1")
+  result=$(ssh daim209 "/home/hadoop/spark-1.6.1-bin-hadoop2.4/bin/spark-submit --class \"$1\" --master yarn --num-executors 7 --executor-memory 2G ~/bsnsk/scalaspark_2.10-1.0.jar 2>&1")
   echo "$result" >> output.log
   if 
     echo "$result" | grep "Exception in thread"
