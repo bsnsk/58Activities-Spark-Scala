@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 ssh daim209 "rm -rf ./bsnsk/58PredictionResult$1"
-ssh daim209 "hadoop fs -copyToLocal /user/shuyangshi/58PredictionTest$1 ./bsnsk/58PredictionResult$1"
+ssh daim209 "export HADOOP_HOME=/home/hadoop/hadoop-2.7.0; /home/hadoop/hadoop-2.7.0/bin/hadoop fs -copyToLocal /user/shuyangshi/58PredictionTest$1 ./bsnsk/58PredictionResult$1"
 scp -r daim209:~/bsnsk/58PredictionResult$1 ./testResults/$(date +%Y%m%d%H%M%S)$1

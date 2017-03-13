@@ -10,7 +10,7 @@ then
   scp ./target/scala-2.10/scalaspark_2.10-1.0.jar daim209:~/bsnsk/
   echo -e "===== upload success! =====\n\n"
   echo -e "===== upload success! =====\n\n" >> output.log
-  result=$(ssh daim209 "/home/hadoop/spark-1.6.1-bin-hadoop2.4/bin/spark-submit --class \"$1\" --master yarn --num-executors 7 --executor-memory 2G ~/bsnsk/scalaspark_2.10-1.0.jar 2>&1")
+  result=$(ssh daim209 "export HADOOP_HOME=/home/hadoop/hadoop-2.7.0; /home/hadoop/spark-1.6.1-bin-without-hadoop/bin/spark-submit --class \"$1\" --master yarn --num-executors 10 --executor-memory 2G --conf spark.rpc.askTimeout=600s ~/bsnsk/scalaspark_2.10-1.0.jar 2>&1")
   echo "$result" >> output.log
   if 
     echo "$result" | grep "Exception in thread"

@@ -1,2 +1,2 @@
 #!/usr/bin/env bash 
-scp ./target/scala-2.10/scalaspark_2.10-1.0.jar changping12:~/bsnsk/
+scp ./target/scala-2.10/scalaspark_2.10-1.0.jar daim209:~/bsnsk/
