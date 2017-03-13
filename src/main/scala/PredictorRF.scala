@@ -24,11 +24,11 @@ object PredictorRF extends PredictionTest {
     // Empty categoricalFeaturesInfo indicates all features are continuous.
     val numClasses = 2
     val categoricalFeaturesInfo = Map[Int, Int]()
-    val numTrees = 10 // Use more in practice.
+    val numTrees = 50 // Use more in practice.
     val featureSubsetStrategy = "auto" // Let the algorithm choose.
     val impurity = "gini"
-    val maxDepth = 4
-    val maxBins = 32
+    val maxDepth = 10
+    val maxBins = 64
 
     val model = RandomForest.trainClassifier(
       trainingData.map(xs => LabeledPoint(xs._3._1, xs._3._2)),

@@ -24,7 +24,7 @@ object PredictorGBT extends PredictionTest {
     // The defaultParams for Classification use LogLoss by default.
 
     var boostingStrategy = BoostingStrategy.defaultParams("Classification")
-    boostingStrategy.numIterations = 5 // Note: Use more iterations in practice.
+    boostingStrategy.numIterations = 50 // Note: Use more iterations in practice.
     boostingStrategy.treeStrategy.numClasses = 2
     boostingStrategy.treeStrategy.maxDepth = 6
 
