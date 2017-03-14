@@ -5,7 +5,7 @@ import org.apache.spark.mllib.optimization.{Gradient, GradientDescent, SquaredL2
 /**
   * Created by Ivan on 2017/3/3.
   */
-object PredictorMatLR {
+object PredictorMatLR extends PredictionTest {
 
   override var identifier: String = "MatLR"
   override var addTimeFeature: Boolean = true
@@ -61,7 +61,7 @@ object PredictorMatLR {
     val cntNegativeSamples = trainingData.filter(r => r._3._1 == 0).count()
     val rate = (cntNegativeSamples.toDouble / cntPositiveSamples.toDouble).toInt
 
-    l
+
     val weights = GradientDescent
       .runMiniBatchSGD(
         trainingData.flatMap(xs =>
