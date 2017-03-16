@@ -33,7 +33,14 @@ abstract class PredictionTest extends Serializable {
     ) = {
     val labeledData = sc.textFile("hdfs:///user/shuyangshi/58data_labeledNoSQL/part-*")
 
-    val data = labeledData
+    val validIds = labeledData
+      .map(r => {
+        val id = r.split(',')(0).split('[')(1)
+        (id, 1)
+      })
+      .reduceByKey(_+_)
+      .filter(_._2 > 3)
+    val allData = labeledData
       .map(r => {
         val id = r.split(',')(0).split('[')(1)
         val date = r.split(',')(1)
@@ -46,18 +53,22 @@ abstract class PredictionTest extends Serializable {
           val dateInstance = Calendar.getInstance()
           dateInstance.setTime(sdf.parse(date))
           val dayOfYear = dateInstance.get(Calendar.DAY_OF_YEAR).toDouble
-          (id.toString, date.toLong, (activeness.toDouble,
+          (id.toString, (date.toLong, (activeness.toDouble,
             if (addTimeFeature) Vectors.dense(features :+ dayOfYear)
             else Vectors.dense(features)
-          ))
+          )))
         }
         catch {
           case _: Throwable =>
-            (id.toString, -1, (0.toDouble,
+            (id.toString, (-1, (0.toDouble,
               Vectors.dense(Array.fill(array.size)(0.0))
-            ))
+            )))
         }
-      }: (String, Long, (Double, Vector)))
+      }: (String, (Long, (Double, Vector))))
+
+    val data = allData.join(validIds).map {
+      case (id, (d, _)) => (id, d._1, d._2)
+    }: RDD[(String, Long, (Double, Vector))]
 
     println("#BSNSK calculated numOfFeatures is " + numberOfFeatures.toString)
 
