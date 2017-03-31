@@ -60,16 +60,15 @@ object PredictorTiLR extends PredictionTest {
 
     val gradient = new myGradient()
 
-    val cntPositiveSamples = trainingData.filter(r => r._3._1 == 1).count()
-    val cntNegativeSamples = trainingData.filter(r => r._3._1 == 0).count()
-    val rate = (cntNegativeSamples.toDouble / cntPositiveSamples.toDouble).toInt
+    val positiveSamples = trainingData.filter(r => r._3._1 == 1)
+    val negativeSamples = trainingData.filter(r => r._3._1 == 0)
+    val rate = positiveSamples.count().toDouble / negativeSamples.count().toDouble
+    val trainingDataFeed = negativeSamples.sample(false, rate)
+      .union(positiveSamples)
 
     val weights = GradientDescent
       .runMiniBatchSGD(
-        trainingData.flatMap(xs =>
-          if (xs._3._1.toInt == 1) List.fill(rate)(xs._3)
-          else List(xs._3)
-        ),
+        trainingDataFeed.map(_._3),
         gradient,
         new SquaredL2Updater(),
         stepSize = 0.1,

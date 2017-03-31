@@ -1,14 +1,20 @@
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.mllib.classification.{LogisticRegressionWithLBFGS, LogisticRegressionWithSGD}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
 import org.apache.spark.mllib.optimization.{Gradient, GradientDescent, SquaredL2Updater}
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.tree.{GradientBoostedTrees, RandomForest}
+import org.apache.spark.mllib.tree.configuration.{BoostingStrategy, FeatureType, Strategy}
+import org.apache.spark.mllib.tree.model.{DecisionTreeModel, Node}
+import org.apache.spark.storage.StorageLevel
 
 /**
-  * Created by Ivan on 2017/3/3.
+  * Created by Ivan on 2017/3/22.
   */
-object PredictorMatLR extends PredictionTest {
+object PredictorRFMatLR extends PredictionTest {
 
-  override var identifier: String = "MatLR"
+  override var identifier: String = "RFMatLR"
   override var addTimeFeature: Boolean = true
 
   class myGradient extends Gradient {
@@ -27,7 +33,7 @@ object PredictorMatLR extends PredictionTest {
       val multiplier = (1.0 / (1.0 + math.exp(margin))) - label
 
       val dateParameter = 0.1
-//      val dateMultiplier = math.exp(- dateParameter * (maxDayOfYear - data(numFeatures - 1)))
+      //      val dateMultiplier = math.exp(- dateParameter * (maxDayOfYear - data(numFeatures - 1)))
       val dateMultiplier = 1
 
       // gradient update
@@ -68,11 +74,75 @@ object PredictorMatLR extends PredictionTest {
     }
   }
 
+  def treeFeatures(
+                    trainingData: RDD[(String, Int, (Double, Vector))],
+                    testData: RDD[(String, Int, (Double, Vector))]
+                  ): (RDD[(String, Int, (Double, Vector))], RDD[(String, Int, (Double, Vector))]) = {
+
+    val positiveSamples = trainingData.filter(r => r._3._1 == 1)
+    val negativeSamples = trainingData.filter(r => r._3._1 == 0)
+    val rate = positiveSamples.count().toDouble / negativeSamples.count().toDouble
+    val trainingDataFeed = negativeSamples.sample(false, rate)
+      .union(positiveSamples).map(xs => LabeledPoint(xs._3._1, xs._3._2))
+
+    val numTrees = 50
+    val rfModel = RandomForest.trainClassifier(
+      trainingDataFeed,
+      numClasses = 2,
+      Map[Int, Int](),
+      numTrees = numTrees,
+      featureSubsetStrategy = "auto",
+      impurity = "gini",
+      maxDepth = 10,
+      maxBins = 64,
+      seed = 32793
+    )
+
+    val treeLeafArray = new Array[Array[Int]](numTrees)
+    for(i<- 0.until(numTrees)){
+      treeLeafArray(i) = getLeafNodes(rfModel.trees(i).topNode)
+    }
+
+    val newTrainingData = negativeSamples.sample(false, rate)
+      .union(positiveSamples)
+      .map {
+        xs => {
+          val x = (xs._3._1, xs._3._2)
+          var newFeature = new Array[Double](0)
+          for (i<- 0.until(numTrees)) {
+            val treePredict = predictModify(rfModel.trees(i).topNode,x._2.toDense)
+            val treeArray = new Array[Double]((rfModel.trees(i).numNodes + 1) / 2)
+            treeArray(treeLeafArray(i).indexOf(treePredict)) = 1
+            newFeature = newFeature ++ treeArray
+          }
+          (xs._1, xs._2, x._1, newFeature)
+        }
+      }
+      .map(xs => (xs._1, xs._2, (xs._3, Vectors.dense(xs._4))))
+
+    val newTestDataFeed = testData//.map(xs => (xs._2, (xs._3._1, xs._3._2)))
+      .map {
+        xs => {
+          val x = xs._3
+          var newFeature = new Array[Double](0)
+          for (i<- 0.until(numTrees)) {
+            val treePredict = predictModify(rfModel.trees(i).topNode,x._2.toDense)
+            val treeArray = new Array[Double]((rfModel.trees(i).numNodes + 1) / 2)
+            treeArray(treeLeafArray(i).indexOf(treePredict)) = 1
+            newFeature = newFeature ++ treeArray
+          }
+          (xs._1, xs._2, (x._1, Vectors.dense(newFeature)))
+        }
+      }
+    (newTrainingData, newTestDataFeed)
+  }
+
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(String, Int, (Double, Vector))],
                                        testData: RDD[(String, Int, (Double, Vector))],
                                        sqlContext: org.apache.spark.sql.SQLContext
                                      ): RDD[(Int, (Int, Int))] = {
+
     val convergenceTol = 1e-4
     val numIterations = 10
     val regParam = 0.01
@@ -89,16 +159,13 @@ object PredictorMatLR extends PredictionTest {
 
     val gradient = new myGradient()
 
-    val positiveSamples = trainingData.filter(r => r._3._1 == 1)
-    val negativeSamples = trainingData.filter(r => r._3._1 == 0)
-    val rate = positiveSamples.count().toDouble / negativeSamples.count().toDouble
-    val trainingDataFeed = negativeSamples.sample(false, rate)
-      .union(positiveSamples).map(_._3)
+//    val trainingDataFeed = negativeSamples.sample(false, rate)
+//      .union(positiveSamples).map(_._3)
 
 
     val weights = GradientDescent
       .runMiniBatchSGD(
-        trainingDataFeed,
+        trainingData.map(_._3),
         gradient,
         new SquaredL2Updater(),
         stepSize = 0.1,
@@ -122,9 +189,9 @@ object PredictorMatLR extends PredictionTest {
   }
 
   def addMatchedResumes(
-                       sc: SparkContext,
-                       training: RDD[(String, Int, (Double, Vector))]
-                     )
+                         sc: SparkContext,
+                         training: RDD[(String, Int, (Double, Vector))]
+                       )
   : RDD[(String, Int, (Double, Vector))] = {
 
     val textFiles = sc.textFile("hdfs:///user/shuyangshi/58data_similarResumes/similarResumeData/part-*")
@@ -179,10 +246,49 @@ object PredictorMatLR extends PredictionTest {
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
     val (training, test) = acquireDividedData(sc)
-    val trainingWithMatchedResumes = addMatchedResumes(sc, training)
+    val (updatedTraining, updatedTest) = treeFeatures(training, test)
+    val latestTraining = addMatchedResumes(sc, updatedTraining)
 
-    val testLabelsAndScores = predictionResultLabelsAndScores(trainingWithMatchedResumes, test, sqlContext)
+    val testLabelsAndScores = predictionResultLabelsAndScores(latestTraining, updatedTest, sqlContext)
 
     evalPredictionResult(sc, testLabelsAndScores)
+  }
+
+  //get decision tree leaf's nodes
+  def getLeafNodes(node:Node):Array[Int] = {
+    var treeLeafNodes = new Array[Int](0)
+    if (node.isLeaf){
+      treeLeafNodes = treeLeafNodes.:+(node.id)
+    }else{
+      treeLeafNodes = treeLeafNodes ++ getLeafNodes(node.leftNode.get)
+      treeLeafNodes = treeLeafNodes ++ getLeafNodes(node.rightNode.get)
+    }
+    treeLeafNodes
+  }
+
+  // predict decision tree leaf's node value
+  def predictModify(node:Node,features:DenseVector):Int={
+    val split = node.split
+    if (node.isLeaf) {
+      node.id
+    } else {
+      //      if (split.get.featureType == FeatureType.Continuous) {
+      if (features(split.get.feature) <= split.get.threshold) {
+        //          println("Continuous left node")
+        predictModify(node.leftNode.get,features)
+      } else {
+        //          println("Continuous right node")
+        predictModify(node.rightNode.get,features)
+      }
+      //      } else {
+      //        if (split.get.categories.contains(features(split.get.feature))) {
+      //          //          println("Categorical left node")
+      //          predictModify(node.leftNode.get,features)
+      //        } else {
+      //          //          println("Categorical right node")
+      //          predictModify(node.rightNode.get,features)
+      //        }
+      //      }
+    }
   }
 }

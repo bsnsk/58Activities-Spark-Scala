@@ -1,7 +1,8 @@
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{StructField, StringType, StructType}
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.{SparkConf, SparkContext}
 
 /**
  * Label Extractor: Activity Level (0 or 1)
@@ -49,106 +50,90 @@ object LabelExtractorActivityLevel {
     val deliveryActive = tableUserDelivery
       .map(xs => ((xs(1), xs(3)), 1))
 
-    val allActive = clickActive.union(deliveryActive).distinct()
+    val allDigits: String => Boolean = string => {
+      string.map(ch => Character.isDigit(ch) || ch.toString == "-" || ch.toString == ".").reduce(_ && _)
+    }
 
-    /* Version 1: Full (Both active and inactive are included) */
-//    val results = idx
-//      .leftOuterJoin(allActive)
-//      .map {
-//        case (key, (inactive, None)) =>
-//          (key._1, key._2, inactive)
-//        case (key, (inactive, active)) =>
-//          (key._1, key._2, active.get)
-//      }
-//      .map(xs => Row(xs._1, xs._2, xs._3))
+    var historyClicks = resumes.map(x => (x._1.toString, Array():Array[Double]))
+    var historyDeliveries = resumes.map(x => (x._1.toString, Array():Array[Double]))
+    val datesArray = dates.map(_._1.toString)
+      .filter(allDigits(_)).filter(_.toLong >= 20160101).filter(_.toLong <= 20180101)
+      .collect().sorted
+    val clickCounts = tableUserAction
+      .map(xs => ((xs(0), xs(1)), 1))
+      .reduceByKey(_+_)
+      .map(xs => (xs._1._1.toString, (xs._1._2, xs._2)))
+    val deliveryCounts = tableUserDelivery
+      .map(xs => ((xs(1), xs(3)), 1))
+      .reduceByKey(_+_)
+      .map(xs => (xs._1._1.toString, (xs._1._2, xs._2)))
 
-    /* Version 2: Single status (Active only) */
-    val results = allActive.map(xs => Row(xs._1._1, xs._1._2, xs._2.toString))
+    for (date <- datesArray) {
+      val clicksToday = clickCounts.filter(_._2._1.toString == date)
+      val deliveryToday = deliveryCounts.filter(_._2._1.toString == date)
+      historyClicks = historyClicks.leftOuterJoin(clicksToday).map {
+        case (resumeid, (previous, newcomer)) => {
+          if (newcomer.isDefined) {
+            (resumeid, previous.:+(newcomer.get._2.toDouble))
+          }
+          else {
+            (resumeid, previous.:+(0.0))
+          }
+        }
+      }
+      historyDeliveries = historyDeliveries.leftOuterJoin(deliveryToday).map {
+        case (resumeid, (previous, newcomer)) => {
+          if (newcomer.isDefined) {
+            (resumeid, previous.:+(newcomer.get._2.toDouble))
+          }
+          else {
+            (resumeid, previous.:+(0.0))
+          }
+        }
+      }
+    }
+    val historyActivities = historyClicks.join(historyDeliveries)
+    val filteredHistoryActivities = historyActivities
+//      .filter(xs => {
+//        var cnt = 0
+//        for (i <- xs._2._1.indices) {
+//          if (xs._2._1(i) > 3 || xs._2._2(i) > 0) {
+//            cnt += 1
+//          }
+//        }
+//        cnt > 3
+//      })
 
-    val schemaString = "resumeid date activeness"
-    val dataStructure = new StructType(
-      schemaString.split(" ").map(fieldName =>
-        StructField(fieldName, StringType, nullable = false)
-      )
-    )
+    val outputPath = "hdfs:///user/shuyangshi/58feature_history"
+    val fs = FileSystem.get(sc.hadoopConfiguration)
+    fs.delete(new Path(outputPath), true)
+    filteredHistoryActivities
+      .repartition(1)
+      .map(xs => (xs._1, (xs._2._1.toSeq, xs._2._2.toSeq)))
+      .saveAsTextFile(outputPath)
 
-    val resultsDF = sqlContext.createDataFrame(
-      results,
-      dataStructure
-    )
-
-    resultsDF
-      .repartition($"date")
-      .write.mode("overwrite")
-      .save("hdfs:///user/shuyangshi/58label_activeness")
+//    val allActive = clickActive.union(deliveryActive).distinct()
+//
+//    /* Version 2: Single status (Active only) */
+//    val results = allActive.map(xs => Row(xs._1._1, xs._1._2, xs._2.toString))
+//
+//    val schemaString = "resumeid date activeness"
+//    val dataStructure = new StructType(
+//      schemaString.split(" ").map(fieldName =>
+//        StructField(fieldName, StringType, nullable = false)
+//      )
+//    )
+//
+//    val resultsDF = sqlContext.createDataFrame(
+//      results,
+//      dataStructure
+//    )
+//
+//    resultsDF
+//      .repartition($"date")
+//      .write.mode("overwrite")
+//      .save("hdfs:///user/shuyangshi/58label_activeness")
   }
 
-  def mainWithSQL(args: Array[String]) {
-    val conf = new SparkConf().setAppName("SparkFeatureExtractor")
-    val sc = new SparkContext(conf)
-    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
-
-    import sqlContext.implicits._
-
-    val tableUserAction = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_userclicks/*.parquet")
-    val tableUserDelivery = sqlContext.read.parquet("hdfs:///user/shuyangshi/58feature_userdeliveries/*.parquet")
-
-    tableUserAction.registerTempTable("58data_userclicks")
-    tableUserDelivery.registerTempTable("58data_userdeliveries")
-
-    val clickThreshold = 3
-
-    val results=sqlContext.sql(
-      s"""
-        SELECT DISTINCT
-          resumes.resumeid,
-          dates.date,
-          CASE
-            WHEN actives.activeness = 1 THEN 1
-            ELSE 0
-          END AS activeness
-        FROM (
-          SELECT DISTINCT clickdate AS date
-          FROM 58data_userclicks
-          UNION
-          SELECT DISTINCT deliverydate AS date
-          FROM 58data_userdeliveries
-        ) dates
-        LEFT OUTER JOIN (
-          SELECT DISTINCT resumeid
-          FROM 58data_userclicks
-          UNION
-          SELECT DISTINCT resumeid
-          FROM 58data_userdeliveries
-        ) resumes
-        LEFT OUTER JOIN
-        (
-          SELECT
-            resumeid,
-            clickdate AS date,
-            1 AS activeness
-          FROM 58data_userclicks
-          GROUP BY resumeid, clickdate
-          HAVING SUM(clickcount) >= $clickThreshold
-
-          UNION ALL
-
-          SELECT
-            resumeid,
-            deliverydate AS date,
-            1 AS activeness
-          FROM 58data_userdeliveries
-          GROUP BY resumeid, deliverydate
-        ) actives
-        ON
-          resumes.resumeid = actives.resumeid
-          AND dates.date = actives.date
-      """.stripMargin)
-
-    results
-      .repartition($"date")
-      .write.mode("overwrite")
-      .save("hdfs:///user/shuyangshi/58label_activeness")
-  }
 
 }

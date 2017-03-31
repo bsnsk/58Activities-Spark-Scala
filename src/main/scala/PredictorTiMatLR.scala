@@ -4,11 +4,11 @@ import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
 import org.apache.spark.mllib.optimization.{Gradient, GradientDescent, SquaredL2Updater}
 
 /**
-  * Created by Ivan on 2017/3/3.
+  * Created by Ivan on 2017/3/19.
   */
-object PredictorMatLR extends PredictionTest {
+object PredictorTiMatLR extends PredictionTest {
 
-  override var identifier: String = "MatLR"
+  override var identifier: String = "TiMatLR"
   override var addTimeFeature: Boolean = true
 
   class myGradient extends Gradient {
@@ -27,8 +27,7 @@ object PredictorMatLR extends PredictionTest {
       val multiplier = (1.0 / (1.0 + math.exp(margin))) - label
 
       val dateParameter = 0.1
-//      val dateMultiplier = math.exp(- dateParameter * (maxDayOfYear - data(numFeatures - 1)))
-      val dateMultiplier = 1
+      val dateMultiplier = math.exp(- dateParameter * (maxDayOfYear - data(numFeatures - 1)))
 
       // gradient update
 
@@ -76,7 +75,7 @@ object PredictorMatLR extends PredictionTest {
     val convergenceTol = 1e-4
     val numIterations = 10
     val regParam = 0.01
-    val nF = trainingData.map(_._3._2.size).max() / 4 - 1
+    val nF = trainingData.first()._3._2.size / 4 - 1
     numberOfFeatures = nF
     val initialWeights = Vectors.dense(Array.fill(nF)(0.0))
 
@@ -122,9 +121,9 @@ object PredictorMatLR extends PredictionTest {
   }
 
   def addMatchedResumes(
-                       sc: SparkContext,
-                       training: RDD[(String, Int, (Double, Vector))]
-                     )
+                         sc: SparkContext,
+                         training: RDD[(String, Int, (Double, Vector))]
+                       )
   : RDD[(String, Int, (Double, Vector))] = {
 
     val textFiles = sc.textFile("hdfs:///user/shuyangshi/58data_similarResumes/similarResumeData/part-*")
@@ -135,40 +134,32 @@ object PredictorMatLR extends PredictionTest {
       .map {
         case (key, (vector, matches)) => ((matches(0), key._2), (key, vector, matches))
       }
-      .leftOuterJoin(toBeJoined)
+      .join(toBeJoined)
       .map {
         case (_, (data, matchedRow)) => ((data._3(1), data._1._2),
           ( data._1,
-            ( data._2._1,
-              if (matchedRow.isDefined) data._2._2.toArray ++ matchedRow.get else data._2._2.toArray
-            ),
+            (data._2._1, data._2._2.toArray ++ matchedRow),
             data._3
           )
         )
       }
-      .leftOuterJoin(toBeJoined)
+      .join(toBeJoined)
       .map {
         case (_, (data, matchedRow)) => ((data._3(2), data._1._2),
           ( data._1,
-            ( data._2._1,
-              if (matchedRow.isDefined) data._2._2 ++ matchedRow.get else data._2._2
-            )
+            (data._2._1, data._2._2 ++ matchedRow)
           )
         )
       }
-      .leftOuterJoin(toBeJoined)
+      .join(toBeJoined)
       .map {
         case (_, (data, matchedRow)) => (
           data._1._1, // resume id : String
           data._1._2, // date : Int
-          (data._2._1, Vectors.dense((
-            if (matchedRow.isDefined) data._2._2 ++ matchedRow.get else data._2._2
-            ).map(_.toString.toDouble))
-          )
+          (data._2._1, Vectors.dense(data._2._2 ++ matchedRow))
         )
       }
 
-    println("## BSNSK CNTJOINED = " + results.count().toString + " / " + training.count().toString)
     results
   }
 

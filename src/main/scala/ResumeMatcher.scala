@@ -33,11 +33,28 @@ object ResumeMatcher {
     tableDeliveryMatches.registerTempTable("58data_deliverymatches")
     tableDownloadMatches.registerTempTable("58data_downloadmatches")
 
+    val labeledData = sc.textFile("hdfs:///user/shuyangshi/58data_labeledNoSQL/part-*")
+
+    val validIds = labeledData
+      .map(r => {
+        val id = r.split(',')(0).split('[')(1)
+        (id, 1)
+      })
+      .reduceByKey(_+_)
+      .filter(_._2 > 3)
+
+    validIds
+      .join(tableDeliveryMatches.map(r => (r(0).toString, 1)))
+      .join(tableDownloadMatches.map(r => (r(0).toString, 1)))
+      .map(r => r._1)
+      .toDF("resumeid")
+      .registerTempTable("58data_actionresumes")
+
     val calcDist = (sa: Seq[Double], sb: Seq[Double]) => {
       (sa, sb).zipped.map((x, y) => (x-y)*(x-y)).sum
     }
 
-    val results = sqlContext.sql(
+    val dataRdd = sqlContext.sql(
       s"""
       SELECT
         ids.resumeid AS resume_id,
@@ -66,6 +83,8 @@ object ResumeMatcher {
           FROM 58data_downloadmatches
 
         ) t
+        JOIN 58data_actionresumes rs
+        ON t.resumeid = rs.resumeid
       ) ids
 
       LEFT OUTER JOIN 58data_deliverymatches dv
@@ -82,40 +101,45 @@ object ResumeMatcher {
     """.stripMargin)
       .repartition($"date")
       .rdd
-      .map(xs => (xs(1).toString, (xs(0).toString, xs.toSeq.drop(2).map(_.toString.toDouble))))
-      .groupByKey()
-      .persist(StorageLevel.DISK_ONLY)
-      .map(dayData => {
-        val resData = dayData._2.toArray
-        var results: List[(String, Array[String])] = List()
-        for (i <- resData.indices) {
-          var minimumIs: Array[Int] = Array(-1, -1, -1)
-          var minimumVs: Array[Double] = Array(1e30, 1e30, 1e30)
-          for (j <- resData.indices) {
-            if (i != j) {
-              val currentV = calcDist(resData(i)._2, resData(j)._2)
-              var updated: Boolean = false
-              var k:Int = 0
-              while (k < 3 && !updated) {
-                if (minimumIs(k) == -1 || currentV < minimumVs(k)) {
-                  minimumIs(k) = j
-                  minimumVs(k) = currentV
-                  updated = true
-                }
-              }
-            }
-          }
-          results = results.:+((resData(i)._1, minimumIs.map(x => resData(x)._1)))
 
-        }
-        (dayData._1, results)
-      })
-      .flatMap(xs => xs._2.map(r => ((r._1, xs._1), r._2)))
-
-    val outputPath = "hdfs:///user/shuyangshi/58data_similarResumes"
+    val outputPath = "hdfs:///user/shuyangshi/58data_similarResumeData"
     val fs = FileSystem.get(sc.hadoopConfiguration)
     fs.delete(new Path(outputPath), true)
-    results
+    dataRdd
       .saveAsTextFile(outputPath)
+
+//    val results = dataRdd
+//      .mapPartitions(dayDataIter => {
+//        val dayData = dayDataIter.toArray.map(xs =>
+//          (xs(1).toString, (xs(0).toString, xs.toSeq.drop(2).map(_.toString.toDouble)))
+//        )
+//        var results: List[(String, Array[String])] = List()
+//        for (i <- dayData.indices) {
+//          var minimumIs: Array[Int] = Array(-1, -1, -1)
+//          var minimumVs: Array[Double] = Array(1e30, 1e30, 1e30)
+//          for (j <- dayData.indices) {
+//            if (i != j) {
+//              val currentV = calcDist(dayData(i)._2._2, dayData(j)._2._2)
+//              var updated: Boolean = false
+//              var k:Int = 0
+//              while (k < 3 && !updated) {
+//                if (minimumIs(k) == -1 || currentV < minimumVs(k)) {
+//                  minimumIs(k) = j
+//                  minimumVs(k) = currentV
+//                  updated = true
+//                }
+//              }
+//            }
+//          }
+//          results = results.:+((dayData(i)._2._1, minimumIs.map(x => dayData(x)._2._1)))
+//        }
+//        results.iterator
+//      }, true)
+//
+//    val outputPath = "hdfs:///user/shuyangshi/58data_similarResumes"
+//    val fs = FileSystem.get(sc.hadoopConfiguration)
+//    fs.delete(new Path(outputPath), true)
+//    results
+//      .saveAsTextFile(outputPath)
   }
 }

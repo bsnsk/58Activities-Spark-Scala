@@ -68,6 +68,7 @@ object MatchExtractor {
     val userdeliveries = dTextFiles.map(_.split("\001")).filter(_.length>=7).map(
       xs => (xs(3), xs(1), xs(5))
     ).filter(xs => xs._1 != "-" && xs._2 != "-")
+    .distinct()
 
     createTableUserAction(sc, sqlContext)
     createTableUserResume(sc, sqlContext)
@@ -84,6 +85,7 @@ object MatchExtractor {
         |     r.userid = u.userid
       """.stripMargin
     ).rdd.map(xs => (xs(0), xs(1), xs(2)))
+    .distinct()
 
     val result = userclicks.map(x => (x._1, x._2, x._3, "C")).union(userdeliveries.map(x => (x._1, x._2, x._3, "D")))
 
