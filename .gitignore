@@ -10,3 +10,5 @@ out
 account_info.py
 *.pyc
 .idea/workspace.xml
+similarResumeData
+historyData

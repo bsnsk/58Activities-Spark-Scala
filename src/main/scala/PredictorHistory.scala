@@ -24,13 +24,13 @@ object PredictorHistory extends PredictionTest {
 
     val labeledData = sc.textFile("hdfs:///user/shuyangshi/58data_labeledNoSQL/part-*")
 
-    val validIds = labeledData
-      .map(r => {
+    val validIds = labeledData.
+      map(r => {
         val id = r.split(',')(0).split('[')(1)
         (id, 1)
-      })
-      .reduceByKey(_+_)
-      .filter(_._2 > 3)
+      }).
+      reduceByKey(_+_).
+      filter(_._2 > 3)
 
     val textFile = sc.textFile("hdfs:///user/shuyangshi/58feature_history")
     val data = textFile.
@@ -53,16 +53,24 @@ object PredictorHistory extends PredictionTest {
         val L = hClicks.length
         var dataRows: List[(String, Int, (Double, Vector))] = List()
         for (i <- 0.until(L-featureLength-7)) { // i + fL - 1 < L - 8
-          val feature: Array[Double] = Array.fill(featureLength)(0.0)
+          val feature: Array[Double] = Array.fill(featureLength * 2)(0.0)
+          var historyActive: Boolean = false
           for (j <- 0.until(featureLength)) {
-            feature(j) = hClicks(i+j) + (if (hDeliveries(i+j) > 0) deliveryWeight else 0)
+//            feature(j) = hClicks(i+j) + (if (hDeliveries(i+j) > 0) deliveryWeight else 0)
+            feature(j * 2) = hClicks(i+j)
+            feature(j * 2 + 1) = hDeliveries(i+j)
+            if (hClicks(i+j) >= clickThreshold || hDeliveries(i+j) > 0) {
+              historyActive = true
+            }
           }
           var flag = 0.0
           for (j <- 0.until(K)) {
             if (hClicks(i+j+featureLength) >= clickThreshold || hDeliveries(i+j+featureLength) > 0)
               flag = 1.0
           }
-          dataRows = dataRows.:+((row._1, i+featureLength-1, (flag, Vectors.dense(feature))))
+          if (historyActive) {
+            dataRows = dataRows.:+((row._1, i + featureLength - 1, (flag, Vectors.dense(feature))))
+          }
         }
         dataRows
       })
@@ -74,16 +82,24 @@ object PredictorHistory extends PredictionTest {
         val L = hClicks.length
         var dataRows: List[(String, Int, (Double, Vector))] = List()
         for (i <- (L-featureLength-7).until(L-featureLength-2)) { // L - 8 <= i + fL - 1 < L - 3
-        val feature: Array[Double] = Array.fill(featureLength)(0.0)
+          val feature: Array[Double] = Array.fill(featureLength * 2)(0.0)
+          var historyActive: Boolean = false
           for (j <- 0.until(featureLength)) {
-            feature(j) = hClicks(i+j) + (if (hDeliveries(i+j) > 0) deliveryWeight else 0)
+            //            feature(j) = hClicks(i+j) + (if (hDeliveries(i+j) > 0) deliveryWeight else 0)
+            feature(j * 2) = hClicks(i+j)
+            feature(j * 2 + 1) = hDeliveries(i+j)
+            if (hClicks(i+j) >= clickThreshold || hDeliveries(i+j) > 0) {
+              historyActive = true
+            }
           }
           var flag = 0.0
           for (j <- 0.until(K)) {
             if (hClicks(i+j+featureLength) >= clickThreshold || hDeliveries(i+j+featureLength) > 0)
               flag = 1.0
           }
-          dataRows = dataRows.:+((row._1, i - (L-featureLength-7), (flag, Vectors.dense(feature))))
+          if (historyActive) {
+            dataRows = dataRows.:+((row._1, i - (L - featureLength - 7), (flag, Vectors.dense(feature))))
+          }
         }
         dataRows
       })

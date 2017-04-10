@@ -18,39 +18,90 @@ abstract class PredictorWithHis extends PredictionTest {
                               dates: Array[Int],
                               K: Int
                             ): RDD[(String, Int, (Double, Vector))] = {
-    rdd.map(xs => (xs._1, (xs._2, xs._3))).join(historyData).map{
-      case (resumeId, (data, history)) => {
+    val rddDates = rdd.map(_._2).distinct.collect()
+    val nF = rdd.first()._3._2.size
+    println("#BSNSK nF = " + nF.toString)
+    rdd.map(xs => (xs._1, (xs._2, xs._3))).rightOuterJoin(historyData).flatMap{
+      case (resumeId, (None, history)) => {
+        var lst = List(): List[(Boolean, String, Int, (Double, Vector))]
+        for (date <- rddDates) {
+          var i = 0
+          while (i < dates.length && dates(i) != date) {
+            i+=1
+          }
+          if (i >= dates.length || i >= history._1.length || i >= history._2.length) {
+            lst = lst.:+((false, resumeId, -1, (1.0, Vectors.dense(Array():Array[Double]))))
+          } else {
+            var historyActive:Boolean = false
+            var features: Array[Double] = Array.fill(if (addTimeFeature) nF-1 else nF)(0.0)
+            for (j <- 0.until(K)) {
+              // i - (K-j-1)
+              val d = i + j - K + 1 // i - K + 1 ~ i
+              if (d >= 0 && d < history._1.length) {
+                features = features.:+(history._1(d))
+                features = features.:+(history._2(d))
+                if (history._1(d) >= 3 || history._2(d) > 0) {
+                  historyActive = true
+                }
+              }
+              else {
+                features = features.:+(0.0)
+                features = features.:+(0.0)
+              }
+            }
+            var flag = 0.0
+            for (j <- 0.until(K)) {
+              if (i+j+1 < history._1.length && i+j+1 < history._2.length
+                  && (history._1(i+j+1) >= 3 || history._2(i+j+1) > 0))
+                flag = 1.0
+            }
+            val newFeatures = Vectors.dense(if (addTimeFeature) features.:+(i * 1.0) else features)
+            lst = lst.:+((historyActive, resumeId, date, (flag, newFeatures)))
+          }
+        }
+        lst
+      }
+      case (resumeId, (dataNotSure, history)) => {
+        val data = dataNotSure.get
         val date = data._1
         var i = 0
         while (i < dates.length && dates(i) != date) {
           i+=1
         }
         if (i >= dates.length || i >= history._1.length) {
-          (resumeId, -1, (1.0, data._2._2))
+          List((false, resumeId, -1, (1.0, data._2._2)))
         } else {
           var features: Array[Double] = data._2._2.toArray
           val dateFeature = if (addTimeFeature) data._2._2(data._2._2.size - 1) else 0.0
           if (addTimeFeature) {
-            features = features.slice(0, features.size - 1)
+            features = features.slice(0, features.length - 1)
           }
+//          features = Array(features(2), features(9), features(10), features(11)) ++ Array.fill(nF-4)(0.0)
+//          features = features.slice(0, 2) ++ Array.fill(nF-2)(0.0) //Array.fill(nF)(0.0) // TODO WARNING WHATEVER
+          var historyActive = false
           for (j <- 0.until(K)) {
             // i - (K-j-1)
-            val d = i + j - K + 1
+            val d = i + j - K + 1 // i - K + 1 ~ i
             if (d >= 0) {
               features = features.:+(history._1(d))
               features = features.:+(history._2(d))
+              if (history._1(d) >= 3 || history._2(d) > 0) {
+                historyActive = true
+              }
             }
             else {
               features = features.:+(0.0)
               features = features.:+(0.0)
             }
           }
-          (resumeId, date, (data._2._1, Vectors.dense(
-            if (addTimeFeature) features.:+(dateFeature) else features
-          )))
+          List((historyActive, resumeId, date, (data._2._1, Vectors.dense(
+            if (addTimeFeature) features.:+(i * 1.0) else features
+          ))))
         }
       }
-    }.filter(_._2 != -1)
+    }
+      .filter(xs => xs._1 && xs._3 != -1)
+      .map(xs => (xs._2, xs._3, xs._4))
   }
 
   def appendHistoryData(
