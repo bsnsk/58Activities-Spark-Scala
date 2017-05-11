@@ -78,6 +78,7 @@ abstract class PredictorWithHis extends PredictionTest {
           }
 //          features = Array(features(2), features(9), features(10), features(11)) ++ Array.fill(nF-4)(0.0)
 //          features = features.slice(0, 2) ++ Array.fill(nF-2)(0.0) //Array.fill(nF)(0.0) // TODO WARNING WHATEVER
+//          val matchFeatures = features
           var historyActive = false
           for (j <- 0.until(K)) {
             // i - (K-j-1)
@@ -94,6 +95,7 @@ abstract class PredictorWithHis extends PredictionTest {
               features = features.:+(0.0)
             }
           }
+//          features = matchFeatures
           List((historyActive, resumeId, date, (data._2._1, Vectors.dense(
             if (addTimeFeature) features.:+(i * 1.0) else features
           ))))

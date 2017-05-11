@@ -116,10 +116,10 @@ object PredictorHistory extends PredictionTest {
 
     val numCases = 2
     val categoricalFeaturesInfo = Map[Int, Int]()
-    val numTrees = 50 // Use more in practice.
+    val numTrees = 50
     val featureSubsetStrategy = "auto" // Let the algorithm choose.
     val impurity = "gini"
-    val maxDepth = 10
+    val maxDepth = 10 // ITER_TAG
     val maxBins = 64
 
     val model = RandomForest.trainClassifier(
@@ -142,7 +142,7 @@ object PredictorHistory extends PredictionTest {
 //      boostingStrategy
 //    )
 
-    val baseDate = 20161005
+    val baseDate = dataDivideDate
     testData.map(data => {
       val prediction = model.predict(data._3._2)
       (baseDate + data._2, (data._3._1.toInt, prediction.toInt))

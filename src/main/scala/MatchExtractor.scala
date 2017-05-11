@@ -5,6 +5,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 
 /**
   * Created by Ivan on 2017/3/6.
+  * Experimental!
   */
 object MatchExtractor {
 
@@ -96,6 +97,7 @@ object MatchExtractor {
         case _:Throwable => ("-", "-", "-", "-")
       }
     ).filter(xs => xs._1 != "-" && xs._2 != "-" && xs._3 != "-")
+      .map(xs => xs._1.toString + "\001" + xs._2.toString + "\001" + xs._3.toString + "\001" + xs._4.toString)
 
     val outputPath = "hdfs:///user/shuyangshi/58data_resumeClickDeliveryPairs"
     val fs = FileSystem.get(sc.hadoopConfiguration)

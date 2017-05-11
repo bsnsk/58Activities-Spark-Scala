@@ -30,7 +30,7 @@ object PredictorLRWithHis extends PredictorWithHis {
         LabeledPoint(xs._3._1, xs._3._2)
       })
 
-      val numIterations = 10
+      val numIterations = 10 // ITER_TAG
       val lrModel = LogisticRegressionWithSGD.train(
         trainingDataFeed,
         numIterations

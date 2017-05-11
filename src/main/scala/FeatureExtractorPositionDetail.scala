@@ -45,7 +45,7 @@ object FeatureExtractorPositionDetail {
 
   def createTablePosition(sc: SparkContext,
                         sqlContext: org.apache.spark.sql.SQLContext
-                         ) = {
+                         ):Unit = {
 
     val textFiles = sc.textFile("hdfs:///zp/58Data/position/position_*")
 

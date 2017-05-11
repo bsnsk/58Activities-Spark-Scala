@@ -20,6 +20,7 @@ abstract class PredictionTest extends Serializable {
   var addTimeFeature: Boolean
 
   var numberOfFeatures: Int = -1
+  var dataDivideDate = 20161005
 
   def predictionResultLabelsAndScores(
                                        trainingData: RDD[(String, Int, (Double, Vector))],
@@ -72,7 +73,7 @@ abstract class PredictionTest extends Serializable {
 
     println("#BSNSK calculated numOfFeatures is " + numberOfFeatures.toString)
 
-    val dividerDate = 20161005
+    val dividerDate = dataDivideDate
     val trainingData = data.filter(pair => pair._2 <= dividerDate && pair._2 > 0)
       .map(r => (r._1, r._2.toInt, r._3))
     val testData = data.filter(pair => pair._2 >= dividerDate && pair._2 > 0 && pair._2 <= 20181010)

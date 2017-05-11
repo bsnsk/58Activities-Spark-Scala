@@ -2,17 +2,15 @@ import org.apache.spark.mllib.classification.LogisticRegressionWithSGD
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
-import org.apache.spark.mllib.optimization.{GradientDescent, SquaredL2Updater}
+import org.apache.spark.mllib.classification.{SVMModel, SVMWithSGD}
 import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.mllib.tree.{GradientBoostedTrees, RandomForest}
-import org.apache.spark.mllib.tree.configuration.{BoostingStrategy, Strategy}
 
 /**
-  * Created by Ivan on 28/03/2017.
+  * Created by Ivan on 14/04/2017.
   */
-object PredictorHistoryLR extends PredictionTest {
+object PredictorHistorySVM extends PredictorWithHis {
 
-  override var identifier: String = "HistoryLR"
+  override var identifier: String = "HistorySVM"
   override var addTimeFeature: Boolean = false
 
   def predictionResultLabelsAndScores(
@@ -27,10 +25,8 @@ object PredictorHistoryLR extends PredictionTest {
     val trainingDataFeed = negativeSamples.sample(false, rate)
       .union(positiveSamples).map(xs => LabeledPoint(xs._3._1, xs._3._2))
 
-    val model = LogisticRegressionWithSGD.train(
-      trainingDataFeed,
-      10 // number of iterations
-    )
+    val numIterations = 100
+    val model = SVMWithSGD.train(trainingDataFeed, numIterations)
 
     val baseDate = dataDivideDate
     testData.map(data => {
@@ -38,7 +34,6 @@ object PredictorHistoryLR extends PredictionTest {
       (baseDate + data._2, (data._3._1.toInt, prediction.toInt))
     })
   }
-
   override
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("SparkPredictor")

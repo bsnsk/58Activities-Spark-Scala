@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+
+from os import system
+from sys import argv
+
+# ====== Parameters ======
+start = 3
+until = 20
+step = 3
+predictorName = "History"
+# ========================
+
+className = "Predictor" + predictorName
+
+flag_string = "ITER_TAG"
+
+def genRunString(className):
+    return """ \
+        sbt package; \
+        ./upload; \
+        rm output.log; \
+        ssh hadoop@daim209 \
+            "export HADOOP_HOME=/home/hadoop/hadoop-2.7.0; \
+            /home/hadoop/spark-1.6.1-bin-without-hadoop/bin/spark-submit \
+            --class \\"{}\\" \
+            --master yarn \
+            --num-executors 40 \
+            --executor-memory 2G \
+            --driver-memory 2G \
+            --conf spark.rpc.askTimeout=600s \
+            ./bsnsk/scalaspark_2.10-1.0.jar 2>&1" >> output.log; \
+        echo -e "\\a"; \
+        ssh daim209 "rm -rf ./bsnsk/58PredictionResult{}"; \
+        ssh daim209 "export HADOOP_HOME=/home/hadoop/hadoop-2.7.0; \
+            /home/hadoop/hadoop-2.7.0/bin/hadoop fs -copyToLocal \
+                /user/shuyangshi/58PredictionTest{} \
+                ./bsnsk/58PredictionResult{}"; \
+        scp -r daim209:~/bsnsk/58PredictionResult{} \
+            ./testResults/$(date +%Y%m%d%H%M%S){}{} \
+        """.format(
+            className,
+            predictorName,
+            predictorName,
+            predictorName,
+            predictorName,
+            className,
+            "-" + str(current)
+        )
+
+
+def modify(filename, parameter):
+    with open(filename, "r") as f:
+        lines = f.readlines()
+    parameterString = "0123456789.-+"
+    f = open(filename, "w")
+    for line in lines:
+        if line.find(flag_string) == -1:
+            f.write(line)
+        else:
+            end = line.find(flag_string)
+            hasDot = False
+            while end > 0 and line[end] != '/':
+                end -= 1
+            while end > 0 and line[end-1] == '/':
+                end -= 1
+            while end > 0 and not (line[end] in parameterString):
+                end -= 1
+            start = end 
+            if line[end] == '.':
+                hasDot = True
+            while start > 0 and line[start-1] in parameterString:
+                start -= 1
+                if line[start] == '.':
+                    hasDot = True
+            newParamString = str(current * 1.0) if hasDot else str(current)
+            newline = line[0:start] + newParamString+ line[end+1:]
+            f.write(newline)
+    f.close()
+
+
+if __name__ == "__main__":
+    global current
+    current = start
+    path = "./src/main/scala/"
+    while current < until:
+        modify(path + className + ".scala", current)
+        system(genRunString(className))
+        # print (genRunString(className))
+        print ("iteration {} done.".format(str(current)))
+        current += step
+

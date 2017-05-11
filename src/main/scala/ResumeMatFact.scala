@@ -91,8 +91,8 @@ object ResumeMatFact {
 
     val data = allData
 
-    val dividerDate = 20161005
-    val testResumes = data.filter(pair => pair._2 >= dividerDate && pair._2 > 0 && pair._2 <= 20181010)
+    val dividerDate = PredictorHistory.dataDivideDate
+    val testResumes = data.filter(pair => pair._2 >= dividerDate && pair._2 > 0 && pair._2 <= 20161010)
       .map(r => (r._1, 1))
 
     val fs = FileSystem.get(sc.hadoopConfiguration)

@@ -20,7 +20,7 @@ object PredictorRFLRWithHisP extends PredictorWithHis {
   class myGradient extends Gradient {
     override def compute(data: Vector, label: Double, weights: Vector, cumGradient: Vector): Double = {
 
-      val gamma = 0.2
+      val gamma = 0.275 // ITER_TAG
 
       val margin = -1.0 * (data.toArray, weights.toArray).zipped.map(_*_).sum
 //      val multiplier = (1.0 / (1.0 + math.exp(margin))) - label
