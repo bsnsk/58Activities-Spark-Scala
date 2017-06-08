@@ -1,3 +1,4 @@
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -68,6 +69,72 @@ object dataCounter {
 
     printf("# BSNSK - Positions Per Day: " + numPositionPerDay.toSeq.toString + "\n")
     printf("# BSNSK - Position total: " + validPositions.map(_._1).distinct.count.toString + "\n")
+
+  }
+
+  def createTablePosition(sc: SparkContext,
+                          sqlContext: org.apache.spark.sql.SQLContext
+                         ):Unit = {
+
+    val textFiles = sc.textFile("hdfs:///zp/58Data/position/position_*")
+
+    val schemaString = "infoid adddate cate1 cate2 cate3 " +
+      "title postdate"
+    val dataStructure = new StructType(
+      schemaString.split(" ").map(fieldName =>
+        StructField(fieldName, StringType, nullable = false)
+      )
+    )
+
+    val rowRDD = textFiles
+      .map(_.split("\001"))
+      .filter(xs => xs.length >= 24)
+      .map(xs => Row(xs(0), xs(1), xs(2), xs(3), xs(4),
+        xs(6), xs(8)))
+
+    val namedDF = sqlContext.createDataFrame(
+      rowRDD,
+      dataStructure
+    )
+
+    namedDF.registerTempTable("58data_positions")
+  }
+
+  def positionRawCount(
+                      sc: SparkContext,
+                      sqlContext: SQLContext
+                      ): Unit = {
+
+    createTablePosition(sc, sqlContext)
+
+    val positionWithDates = sqlContext.sql(
+      """
+        SELECT DISTINCT
+          r.infoid,
+          FROM_UNIXTIME(SUBSTR(r.adddate, 1, 10),'YYYYMMdd')
+            AS adddate,
+          FROM_UNIXTIME(SUBSTR(r.postdate, 1, 10),'YYYYMMdd')
+            AS postdate
+        FROM 58data_positions r
+        WHERE
+          r.infoid <> '-'
+          AND r.adddate <> '-'
+          AND r.postdate <> '-'
+      """.stripMargin).
+      rdd.
+      filter(xs => xs.length >= 3).
+      map(xs => (xs(0), xs(1), xs(2)))
+
+    val validPositions = positionWithDates.
+      filter(xs => xs._1 != null && xs._2 != null
+        && xs._2.toString.toInt >= 20160910 && xs._2.toString.toInt <= 20161010)
+      .filter(xs => xs._2 == xs._3)
+    val numPositionPerDay = validPositions.
+      map(xs => (xs._2.toString, 1)).
+      reduceByKey(_+_).collect()
+
+    printf("# BSNSK - Post=Add Positions Per Day: " + numPositionPerDay.toSeq.toString + "\n")
+    printf("# BSNSK - Post=Add Position total: " + validPositions.map(_._1).distinct.count.toString + "\n")
 
   }
 
@@ -223,9 +290,10 @@ object dataCounter {
     val sc = new SparkContext(conf)
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
+    positionRawCount(sc, sqlContext)
 
 //    resumeCount(sc, sqlContext)
 //    positionCount(sc, sqlContext)
-    userActivityCount(sc, sqlContext)
+//    userActivityCount(sc, sqlContext)
   }
 }

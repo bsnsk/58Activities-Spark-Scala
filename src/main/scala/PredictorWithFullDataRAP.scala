@@ -1,5 +1,10 @@
-import org.apache.spark.mllib.classification.{LogisticRegressionWithLBFGS, LogisticRegressionWithSGD}
+import org.apache.spark.mllib.classification.LogisticRegressionWithSGD
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
+import org.apache.spark.mllib.optimization.Gradient
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.tree.RandomForest
 import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.classification.{LogisticRegressionWithLBFGS, LogisticRegressionWithSGD}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
 import org.apache.spark.mllib.optimization.{Gradient, GradientDescent, SquaredL2Updater}
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -9,21 +14,19 @@ import org.apache.spark.mllib.tree.model.{DecisionTreeModel, Node}
 import org.apache.spark.storage.StorageLevel
 
 /**
-  * Created by Ivan on 31/03/2017.
+  * Created by Ivan on 18/05/2017.
   */
-object PredictorRFLRWithHisP extends PredictorWithHis {
+object PredictorWithFullDataRAP extends PredictorWithSpecifiedData {
 
-
-  override var identifier: String = "RFLRWithHisP"
-  override var addTimeFeature: Boolean = false
+  override var featureTag: String = "BMH"
+  override var identifier: String = "WithFullDataRAP"
 
   class myGradient extends Gradient {
     override def compute(data: Vector, label: Double, weights: Vector, cumGradient: Vector): Double = {
 
-      val gamma = 0.2 // ITER_TAG
+      val gamma = -0.2 // ITER_TAG
 
       val margin = -1.0 * (data.toArray, weights.toArray).zipped.map(_*_).sum
-//      val multiplier = (1.0 / (1.0 + math.exp(margin))) - label
       val multiplier = - (math.exp(margin) / (1 + math.exp(margin))) + (1 - gamma) * (1 - label)
 
       var accumulativeGradient = cumGradient.toDense.values
@@ -53,7 +56,11 @@ object PredictorRFLRWithHisP extends PredictorWithHis {
 
     val numTrees = 50
     val rfModel = RandomForest.trainClassifier(
-      trainingDataFeed,
+      trainingDataFeed.map(xs => {
+        val arr = xs.features.toArray
+//        LabeledPoint(xs.label, Vectors.dense(arr.slice(30, arr.length)))
+        LabeledPoint(xs.label, Vectors.dense(arr.slice(42, arr.length)))
+      }),
       numClasses = 2,
       Map[Int, Int](),
       numTrees = numTrees,
@@ -73,9 +80,13 @@ object PredictorRFLRWithHisP extends PredictorWithHis {
       .union(positiveSamples).map(xs => (xs._3._1, xs._3._2))
       .map {
         x => {
-          var newFeature = new Array[Double](0)
+          val arr = x._2.toArray
+          var newFeature = arr.slice(0, 42)// new Array[Double](0)
+//          var newFeature = arr.slice(12, 42)// new Array[Double](0)
+//          val rfFeature = Vectors.dense(arr.slice(30, arr.length))
+          val rfFeature = Vectors.dense(arr.slice(42, arr.length))
           for (i<- 0.until(numTrees)) {
-            val treePredict = predictModify(rfModel.trees(i).topNode,x._2.toDense)
+            val treePredict = predictModify(rfModel.trees(i).topNode,rfFeature.toDense)
             val treeArray = new Array[Double]((rfModel.trees(i).numNodes + 1) / 2)
             treeArray(treeLeafArray(i).indexOf(treePredict)) = 1
             newFeature = newFeature ++ treeArray
@@ -89,9 +100,13 @@ object PredictorRFLRWithHisP extends PredictorWithHis {
       .map {
         xs => {
           val x = xs._2
-          var newFeature = new Array[Double](0)
+          val arr = x._2.toArray
+          var newFeature = arr.slice(0, 42)// new Array[Double](0)
+//          var newFeature = arr.slice(12, 42)// new Array[Double](0)
+//          val rfFeature = Vectors.dense(arr.slice(30, arr.length))
+          val rfFeature = Vectors.dense(arr.slice(42, arr.length))
           for (i<- 0.until(numTrees)) {
-            val treePredict = predictModify(rfModel.trees(i).topNode,x._2.toDense)
+            val treePredict = predictModify(rfModel.trees(i).topNode,rfFeature.toDense)
             val treeArray = new Array[Double]((rfModel.trees(i).numNodes + 1) / 2)
             treeArray(treeLeafArray(i).indexOf(treePredict)) = 1
             newFeature = newFeature ++ treeArray

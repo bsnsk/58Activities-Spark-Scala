@@ -1,3 +1,6 @@
+import java.text.SimpleDateFormat
+import java.util.Calendar
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
@@ -103,6 +106,36 @@ object PredictorHistory extends PredictionTest {
         }
         dataRows
       })
+
+    val allData = labeledData
+      .map(r => {
+        val id = r.split(',')(0).split('[')(1)
+        val date = r.split(',')(1)
+        val array = r.split('(')(1).split(')')(0).split(", ")
+        val activeness = array(0)
+
+        try {
+          val features = array.slice(1, array.size).map(_.toDouble)
+          val sdf = new SimpleDateFormat("yyyyMMdd")
+          val dateInstance = Calendar.getInstance()
+          dateInstance.setTime(sdf.parse(date))
+          val dayOfYear = dateInstance.get(Calendar.DAY_OF_YEAR).toDouble
+          (id.toString, (date.toLong, (activeness.toDouble,
+            Vectors.dense(features)
+          )))
+        }
+        catch {
+          case _: Throwable =>
+            (id.toString, (-1, (0.toDouble,
+              Vectors.dense(Array.fill(array.size)(0.0))
+            )))
+        }
+      }: (String, (Long, (Double, Vector))))
+
+    val basicData = allData.join(validIds).map {
+      case (id, (d, _)) => (id, d._1, d._2)
+    }.filter(xs => xs._2 > 0 && xs._2 <= 20180101)
+      .map(xs => (xs._1, xs._2.toInt, xs._3))
 
     println("#BSNSK SIZES: " + training.count().toString + ", " + test.count().toString)
     (training, test)

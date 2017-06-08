@@ -34,6 +34,7 @@ abstract class PredictorWithHis extends PredictionTest {
           } else {
             var historyActive:Boolean = false
             var features: Array[Double] = Array.fill(if (addTimeFeature) nF-1 else nF)(0.0)
+//            var features: Array[Double] = Array.fill(12)(0.0) // TODO:
             for (j <- 0.until(K)) {
               // i - (K-j-1)
               val d = i + j - K + 1 // i - K + 1 ~ i
@@ -78,7 +79,8 @@ abstract class PredictorWithHis extends PredictionTest {
           }
 //          features = Array(features(2), features(9), features(10), features(11)) ++ Array.fill(nF-4)(0.0)
 //          features = features.slice(0, 2) ++ Array.fill(nF-2)(0.0) //Array.fill(nF)(0.0) // TODO WARNING WHATEVER
-//          val matchFeatures = features
+//          features = features.slice(0, 12)
+          val matchFeatures = features
           var historyActive = false
           for (j <- 0.until(K)) {
             // i - (K-j-1)
